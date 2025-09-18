@@ -115,7 +115,6 @@ const App: React.FC = () => {
             projects={projects}
             onProjectSelect={handleProjectSelect}
             onProjectsChange={saveProjects}
-            settings={settings}
           />
         );
       case 'project':

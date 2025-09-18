@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Project, ProjectData, Settings } from '../types';
+import { Project, ProjectData } from '../types';
 import NewProjectModal from './NewProjectModal';
-import GitHubSync from './GitHubSync';
 
 interface ProjectListProps {
   projects: Project[];
   onProjectSelect: (project: Project) => void;
   onProjectsChange: (projects: Project[]) => void;
-  settings: Settings;
 }
 
 interface ProjectMetrics {
@@ -19,14 +17,10 @@ interface ProjectMetrics {
 const ProjectList: React.FC<ProjectListProps> = ({
   projects,
   onProjectSelect,
-  onProjectsChange,
-  settings
+  onProjectsChange
 }) => {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [projectMetrics, setProjectMetrics] = useState<Record<string, ProjectMetrics>>({});
-  const [showGitHubSync, setShowGitHubSync] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [selectedProjectData, setSelectedProjectData] = useState<ProjectData | null>(null);
 
   useEffect(() => {
     loadProjectMetrics();
@@ -88,23 +82,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
     }
   };
 
-  const handleGitHubSync = async (project: Project) => {
-    try {
-      const projectData = await window.electronAPI.getProjectData(project.id);
-      setSelectedProject(project);
-      setSelectedProjectData(projectData);
-      setShowGitHubSync(true);
-    } catch (error) {
-      console.error('Failed to load project data for GitHub sync:', error);
-    }
-  };
-
-  const handleProjectUpdate = (updatedProject: Project) => {
-    const updatedProjects = projects.map(p =>
-      p.id === updatedProject.id ? updatedProject : p
-    );
-    onProjectsChange(updatedProjects);
-  };
 
   if (projects.length === 0) {
     return (
@@ -426,74 +403,36 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onProjectSelect(project);
-                  }}
-                  style={{
-                    flex: 1,
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '14px 20px',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
-                    e.currentTarget.style.transform = 'translateY(0px)';
-                  }}
-                >
-                  Open Project
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGitHubSync(project);
-                  }}
-                  style={{
-                    background: project.github ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '14px 16px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    minWidth: '80px'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (project.github) {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)';
-                    } else {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #4b5563 0%, #374151 100%)';
-                    }
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (project.github) {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
-                    } else {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)';
-                    }
-                    e.currentTarget.style.transform = 'translateY(0px)';
-                  }}
-                  title={project.github ? `Synced to ${project.github.repoName}` : 'Sync to GitHub'}
-                >
-                  {project.github ? 'GitHub' : 'Sync'}
-                </button>
-              </div>
+              {/* Action Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onProjectSelect(project);
+                }}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '14px 20px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  marginBottom: '16px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+                  e.currentTarget.style.transform = 'translateY(0px)';
+                }}
+              >
+                Open Project
+              </button>
 
               {/* Footer with dates and status */}
               <div style={{
@@ -554,20 +493,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
         <NewProjectModal
           onSubmit={handleNewProject}
           onClose={() => setShowNewProjectModal(false)}
-        />
-      )}
-
-      {showGitHubSync && selectedProject && selectedProjectData && (
-        <GitHubSync
-          project={selectedProject}
-          projectData={selectedProjectData}
-          settings={settings}
-          onProjectUpdate={handleProjectUpdate}
-          onClose={() => {
-            setShowGitHubSync(false);
-            setSelectedProject(null);
-            setSelectedProjectData(null);
-          }}
         />
       )}
     </div>
