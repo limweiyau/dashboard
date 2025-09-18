@@ -583,9 +583,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         maxWidth: '1600px',
         width: '100%'
       }}>
-        {/* Left Panel */}
+        {/* Left Panel - Expanded Configuration Panel */}
         <div style={{
-          width: '550px',
+          width: '750px',
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
@@ -593,7 +593,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           display: 'flex',
           flexDirection: 'column',
           height: 'auto',
-          minHeight: '75vh',
+          minHeight: '80vh',
           maxHeight: '85vh',
           overflow: 'hidden'
         }}>
@@ -686,14 +686,13 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Tab Content */}
+              {/* Tab Content - Fixed Height */}
               <div style={{
                 padding: '16px 20px',
-                flex: 1,
+                height: 'calc(80vh - 220px)',
                 overflowY: 'auto',
                 overflowX: 'hidden',
-                maxHeight: 'calc(85vh - 250px)',
-                minHeight: 0
+                minHeight: '500px'
               }}>
                 {/* Data Tab */}
                 {activeTab === 'data' && (
@@ -1290,41 +1289,31 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
 
                               if (chartCategory === 'bar') {
                                 return (
-                                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={chartConfig.dataLabelsComponents?.showValue || false}
-                                      onChange={(e) => setChartConfig(prev => ({
-                                        ...prev,
-                                        dataLabelsComponents: {
-                                          ...prev.dataLabelsComponents,
-                                          showValue: e.target.checked
-                                        }
-                                      }))}
-                                      style={{ marginRight: '8px' }}
-                                    />
-                                    Value
-                                  </label>
+                                  <div style={{
+                                    padding: '12px',
+                                    background: '#f8fafc',
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    fontSize: '13px',
+                                    color: '#64748b'
+                                  }}>
+                                    Values are displayed by default when data labels are enabled.
+                                  </div>
                                 );
                               }
 
                               if (chartCategory === 'line' || chartCategory === 'area') {
                                 return (
-                                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={chartConfig.dataLabelsComponents?.showValue || false}
-                                      onChange={(e) => setChartConfig(prev => ({
-                                        ...prev,
-                                        dataLabelsComponents: {
-                                          ...prev.dataLabelsComponents,
-                                          showValue: e.target.checked
-                                        }
-                                      }))}
-                                      style={{ marginRight: '8px' }}
-                                    />
-                                    Value
-                                  </label>
+                                  <div style={{
+                                    padding: '12px',
+                                    background: '#f8fafc',
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    fontSize: '13px',
+                                    color: '#64748b'
+                                  }}>
+                                    Values are displayed by default when data labels are enabled.
+                                  </div>
                                 );
                               }
 
@@ -2813,9 +2802,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           )}
         </div>
 
-        {/* Right Panel - Chart Preview (20% wider) */}
+        {/* Right Panel - Chart Preview */}
         <div style={{
-          flex: 1.2,
+          flex: 1,
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',

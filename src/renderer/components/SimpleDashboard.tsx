@@ -903,25 +903,29 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   };
 
   const getChartDimensions = (templateId: string) => {
-    const svgHeight = 403; // SVG height
-    const containerHeight = svgHeight + 50; // Add 50px for x-axis titles (reasonable space)
+    // 16:9 aspect ratio optimized for laptop screens
+    const baseWidth = 800;
+    const baseHeight = 450; // 16:9 aspect ratio
+    const svgHeight = baseHeight;
+    const containerHeight = svgHeight + 40; // Reduced padding for tighter fit
 
     switch (templateId) {
       case 'simple-bar':
       case 'multi-series-bar':
       case 'stacked-bar':
-        return { width: 978, height: containerHeight, svgHeight }; // Container height includes extra space
+        return { width: baseWidth, height: containerHeight, svgHeight };
       case 'simple-line':
       case 'multi-line':
-        return { width: 920, height: containerHeight, svgHeight }; // Container height includes extra space
+        return { width: baseWidth, height: containerHeight, svgHeight };
       case 'area-chart':
-        return { width: 920, height: containerHeight, svgHeight }; // Container height includes extra space
+        return { width: baseWidth, height: containerHeight, svgHeight };
       case 'pie-chart':
-        return { width: 518, height: containerHeight, svgHeight }; // Container height includes extra space
+        // Square aspect ratio for pie charts
+        return { width: 500, height: 500 + 40, svgHeight: 500 };
       case 'scatter-plot':
-        return { width: 800, height: containerHeight, svgHeight }; // Container height includes extra space
+        return { width: baseWidth, height: containerHeight, svgHeight };
       default:
-        return { width: 800, height: containerHeight, svgHeight }; // Container height includes extra space
+        return { width: baseWidth, height: containerHeight, svgHeight };
     }
   };
 
@@ -1126,7 +1130,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               onMouseEnter={(e) => e.currentTarget.style.background = '#dc2626'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#ef4444'}
             >
-              🗑️ Delete All Data
+              Delete Table
             </button>
           </div>
         </div>
@@ -1552,7 +1556,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             e.currentTarget.style.boxShadow = '0 2px 4px rgba(239, 68, 68, 0.2)';
                           }}
                         >
-                          🗑️ Delete
+                          Delete
                         </button>
                       </div>
                     </div>

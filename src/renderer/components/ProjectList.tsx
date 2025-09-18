@@ -316,29 +316,32 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     handleDeleteProject(project.id);
                   }}
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '4px',
-                    borderRadius: '4px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
                     cursor: 'pointer',
-                    color: '#94a3b8',
-                    fontSize: '14px',
+                    color: '#dc2626',
+                    fontSize: '12px',
+                    fontWeight: '600',
                     transition: 'all 0.2s ease',
-                    opacity: 0.6
+                    opacity: 1
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#fef2f2';
-                    e.currentTarget.style.color = '#dc2626';
-                    e.currentTarget.style.opacity = '1';
+                    e.currentTarget.style.background = '#dc2626';
+                    e.currentTarget.style.color = 'white';
+                    e.currentTarget.style.borderColor = '#dc2626';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'none';
-                    e.currentTarget.style.color = '#94a3b8';
-                    e.currentTarget.style.opacity = '0.6';
+                    e.currentTarget.style.background = '#fef2f2';
+                    e.currentTarget.style.color = '#dc2626';
+                    e.currentTarget.style.borderColor = '#fecaca';
+                    e.currentTarget.style.transform = 'translateY(0px)';
                   }}
                   title="Delete Project"
                 >
-                  ×
+                  Delete
                 </button>
               </div>
 

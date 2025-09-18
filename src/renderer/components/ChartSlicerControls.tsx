@@ -1048,7 +1048,7 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                     }}
                     title="Delete filter"
                   >
-                    🗑️
+                    ×
                   </button>
                   <button
                     onClick={() => handleToggleSlicer(slicer.id, false)}
