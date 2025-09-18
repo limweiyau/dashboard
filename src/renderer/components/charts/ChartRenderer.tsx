@@ -2005,35 +2005,23 @@ function renderScatterPlot(
           const components = config.dataLabelsComponents || {};
           let labelParts: string[] = [];
 
-          // For scatter plots, show Y value by default if no components specified
-          if (!components.showCategory && !components.showValue && !components.showPercentage && !components.showSeriesName) {
+          // For scatter plots, show coordinates by default if no components specified
+          if (!components.showCategory && !components.showValue && !components.showPercentage && !components.showSeriesName && !components.showCoordinates) {
+            const xValue = typeof d === 'object' ? d.x : 0;
             const yValue = typeof d === 'object' ? d.y : d;
-            return formatNumberValue(yValue, config.numberFormat);
+            return `(${formatNumberValue(xValue, config.numberFormat)}, ${formatNumberValue(yValue, config.numberFormat)})`;
           }
 
-          // Show category/label if requested
-          if (components.showCategory) {
-            labelParts.push(data.labels[i] || `Point ${i + 1}`);
-          }
-
-          // Show series name if requested
-          if (components.showSeriesName) {
-            labelParts.push(dataset.label || 'Series');
-          }
-
-          // Show value if requested (for scatter, show both X and Y)
-          if (components.showValue) {
+          // Show coordinates if requested (for scatter charts)
+          if (components.showCoordinates) {
             const xValue = typeof d === 'object' ? d.x : 0;
             const yValue = typeof d === 'object' ? d.y : d;
             labelParts.push(`(${formatNumberValue(xValue, config.numberFormat)}, ${formatNumberValue(yValue, config.numberFormat)})`);
           }
 
-          // Show percentage if requested (relative to max Y value)
-          if (components.showPercentage) {
-            const yValue = typeof d === 'object' ? d.y : d;
-            const maxY = d3.max(yValues) || 1;
-            const percentage = ((yValue / maxY) * 100).toFixed(1);
-            labelParts.push(`${percentage}%`);
+          // Show series name if requested
+          if (components.showSeriesName) {
+            labelParts.push(dataset.label || 'Series');
           }
 
           return labelParts.join(' ');

@@ -238,6 +238,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     } else if (template.category === 'scatter') {
       // Scatter charts should show coordinates
       defaultDataLabelsComponents = {
+        showCoordinates: true,
         showValue: false,
         showPercentage: false,
         showCategory: false,
@@ -1283,66 +1284,158 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                             Label Content
                           </h4>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
-                              <input
-                                type="checkbox"
-                                checked={chartConfig.dataLabelsComponents?.showCategory !== false}
-                                onChange={(e) => setChartConfig(prev => ({
-                                  ...prev,
-                                  dataLabelsComponents: {
-                                    ...prev.dataLabelsComponents,
-                                    showCategory: e.target.checked
-                                  }
-                                }))}
-                                style={{ marginRight: '8px' }}
-                              />
-                              Category Name
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
-                              <input
-                                type="checkbox"
-                                checked={chartConfig.dataLabelsComponents?.showValue || false}
-                                onChange={(e) => setChartConfig(prev => ({
-                                  ...prev,
-                                  dataLabelsComponents: {
-                                    ...prev.dataLabelsComponents,
-                                    showValue: e.target.checked
-                                  }
-                                }))}
-                                style={{ marginRight: '8px' }}
-                              />
-                              Value
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
-                              <input
-                                type="checkbox"
-                                checked={chartConfig.dataLabelsComponents?.showPercentage || false}
-                                onChange={(e) => setChartConfig(prev => ({
-                                  ...prev,
-                                  dataLabelsComponents: {
-                                    ...prev.dataLabelsComponents,
-                                    showPercentage: e.target.checked
-                                  }
-                                }))}
-                                style={{ marginRight: '8px' }}
-                              />
-                              Percentage
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
-                              <input
-                                type="checkbox"
-                                checked={chartConfig.dataLabelsComponents?.showSeriesName || false}
-                                onChange={(e) => setChartConfig(prev => ({
-                                  ...prev,
-                                  dataLabelsComponents: {
-                                    ...prev.dataLabelsComponents,
-                                    showSeriesName: e.target.checked
-                                  }
-                                }))}
-                                style={{ marginRight: '8px' }}
-                              />
-                              Series Name
-                            </label>
+                            {(() => {
+                              // Smart data label components based on chart type
+                              const chartCategory = selectedTemplate?.category;
+
+                              if (chartCategory === 'bar') {
+                                return (
+                                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={chartConfig.dataLabelsComponents?.showValue || false}
+                                      onChange={(e) => setChartConfig(prev => ({
+                                        ...prev,
+                                        dataLabelsComponents: {
+                                          ...prev.dataLabelsComponents,
+                                          showValue: e.target.checked
+                                        }
+                                      }))}
+                                      style={{ marginRight: '8px' }}
+                                    />
+                                    Value
+                                  </label>
+                                );
+                              }
+
+                              if (chartCategory === 'line' || chartCategory === 'area') {
+                                return (
+                                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={chartConfig.dataLabelsComponents?.showValue || false}
+                                      onChange={(e) => setChartConfig(prev => ({
+                                        ...prev,
+                                        dataLabelsComponents: {
+                                          ...prev.dataLabelsComponents,
+                                          showValue: e.target.checked
+                                        }
+                                      }))}
+                                      style={{ marginRight: '8px' }}
+                                    />
+                                    Value
+                                  </label>
+                                );
+                              }
+
+                              if (chartCategory === 'pie') {
+                                return (
+                                  <>
+                                    <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={chartConfig.dataLabelsComponents?.showPercentage || false}
+                                        onChange={(e) => setChartConfig(prev => ({
+                                          ...prev,
+                                          dataLabelsComponents: {
+                                            ...prev.dataLabelsComponents,
+                                            showPercentage: e.target.checked
+                                          }
+                                        }))}
+                                        style={{ marginRight: '8px' }}
+                                      />
+                                      Percentage
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={chartConfig.dataLabelsComponents?.showCategory || false}
+                                        onChange={(e) => setChartConfig(prev => ({
+                                          ...prev,
+                                          dataLabelsComponents: {
+                                            ...prev.dataLabelsComponents,
+                                            showCategory: e.target.checked
+                                          }
+                                        }))}
+                                        style={{ marginRight: '8px' }}
+                                      />
+                                      Category Name
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={chartConfig.dataLabelsComponents?.showValue || false}
+                                        onChange={(e) => setChartConfig(prev => ({
+                                          ...prev,
+                                          dataLabelsComponents: {
+                                            ...prev.dataLabelsComponents,
+                                            showValue: e.target.checked
+                                          }
+                                        }))}
+                                        style={{ marginRight: '8px' }}
+                                      />
+                                      Value
+                                    </label>
+                                  </>
+                                );
+                              }
+
+                              if (chartCategory === 'scatter') {
+                                return (
+                                  <>
+                                    <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={chartConfig.dataLabelsComponents?.showCoordinates || false}
+                                        onChange={(e) => setChartConfig(prev => ({
+                                          ...prev,
+                                          dataLabelsComponents: {
+                                            ...prev.dataLabelsComponents,
+                                            showCoordinates: e.target.checked
+                                          }
+                                        }))}
+                                        style={{ marginRight: '8px' }}
+                                      />
+                                      Coordinates (X, Y)
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={chartConfig.dataLabelsComponents?.showSeriesName || false}
+                                        onChange={(e) => setChartConfig(prev => ({
+                                          ...prev,
+                                          dataLabelsComponents: {
+                                            ...prev.dataLabelsComponents,
+                                            showSeriesName: e.target.checked
+                                          }
+                                        }))}
+                                        style={{ marginRight: '8px' }}
+                                      />
+                                      Series Name
+                                    </label>
+                                  </>
+                                );
+                              }
+
+                              // Fallback for any other chart types
+                              return (
+                                <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={chartConfig.dataLabelsComponents?.showValue || false}
+                                    onChange={(e) => setChartConfig(prev => ({
+                                      ...prev,
+                                      dataLabelsComponents: {
+                                        ...prev.dataLabelsComponents,
+                                        showValue: e.target.checked
+                                      }
+                                    }))}
+                                    style={{ marginRight: '8px' }}
+                                  />
+                                  Value
+                                </label>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
