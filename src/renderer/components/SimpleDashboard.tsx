@@ -5,6 +5,7 @@ import ChartBuilder from './charts/ChartBuilder';
 import ChartRenderer from './charts/ChartRenderer';
 import DashboardBuilder from './DashboardBuilder';
 import DataImport from './DataImport';
+import ChartAnalysisModal from './ChartAnalysisModal';
 import { applySlicersToData } from '../utils/slicerUtils';
 import ChartSlicerControls from './ChartSlicerControls';
 import DateRangeManager from './DateRangeManager';
@@ -40,6 +41,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   const [hasRestoredAnalyses, setHasRestoredAnalyses] = useState(false);
   const [editingTableName, setEditingTableName] = useState(false);
   const [tableName, setTableName] = useState(projectData.name || 'Dataset');
+
+  // Modal analysis states
+  const [modalChart, setModalChart] = useState<Chart | null>(null);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [modalChartData, setModalChartData] = useState<ChartData | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -251,6 +257,40 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         ...prev,
         [chartId]: { content: fallbackAnalysis, isGenerating: false, error: 'Using fallback analysis' }
       }));
+    }
+  };
+
+  // Modal analysis handlers
+  const handleShowAnalysisModal = (chart: Chart) => {
+    const chartData = generateChartData(chart);
+    setModalChart(chart);
+    setModalChartData(chartData);
+    setShowAnalysisModal(true);
+  };
+
+  const handleCloseAnalysisModal = () => {
+    setShowAnalysisModal(false);
+    setModalChart(null);
+    setModalChartData(null);
+  };
+
+  const handleRegenerateModalAnalysis = () => {
+    if (modalChart) {
+      generateChartAnalysis(modalChart, modalChartData);
+    }
+  };
+
+  const getAnalysisButtonState = (chart: Chart) => {
+    const analysisState = chartAnalyses[chart.id];
+    const hasAnalysis = Boolean(analysisState?.content?.trim());
+    const isGenerating = Boolean(analysisState?.isGenerating);
+
+    if (isGenerating) {
+      return { type: 'generating' as const, label: 'Generating...', disabled: true };
+    } else if (hasAnalysis) {
+      return { type: 'show' as const, label: 'Analysis', disabled: false };
+    } else {
+      return { type: 'generate' as const, label: 'Generate', disabled: false };
     }
   };
 
@@ -1503,7 +1543,68 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        {/* Analysis button removed but function kept for later use */}
+                        {(() => {
+                          const buttonState = getAnalysisButtonState(chart);
+
+                          return (
+                            <button
+                              onClick={() => {
+                                if (buttonState.type === 'generate') {
+                                  generateChartAnalysis(chart, chartData);
+                                } else if (buttonState.type === 'show') {
+                                  handleShowAnalysisModal(chart);
+                                }
+                              }}
+                              disabled={buttonState.disabled}
+                              style={{
+                                padding: '8px 16px',
+                                background: buttonState.type === 'generate'
+                                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                                  : buttonState.type === 'show'
+                                    ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                                    : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                cursor: buttonState.disabled ? 'not-allowed' : 'pointer',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                transition: 'all 0.2s ease',
+                                boxShadow: `0 2px 4px ${
+                                  buttonState.type === 'generate'
+                                    ? 'rgba(16, 185, 129, 0.2)'
+                                    : buttonState.type === 'show'
+                                      ? 'rgba(139, 92, 246, 0.2)'
+                                      : 'rgba(148, 163, 184, 0.2)'
+                                }`,
+                                opacity: buttonState.disabled ? 0.7 : 1
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!buttonState.disabled) {
+                                  if (buttonState.type === 'generate') {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+                                  } else if (buttonState.type === 'show') {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)';
+                                  }
+                                  e.currentTarget.style.transform = 'translateY(-1px)';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!buttonState.disabled) {
+                                  if (buttonState.type === 'generate') {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                                  } else if (buttonState.type === 'show') {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+                                  }
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                }
+                              }}
+                            >
+                              {buttonState.label}
+                            </button>
+                          );
+                        })()}
+
                         <button
                           onClick={() => setSelectedChart(chart)}
                           style={{
@@ -1529,7 +1630,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             e.currentTarget.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.2)';
                           }}
                         >
-                          ✏️ Edit
+                          Edit
                         </button>
                         <button
                           onClick={() => handleChartDelete(chart.id)}
@@ -1688,6 +1789,19 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
       {activeTab === 'charts' && renderCharts()}
       {activeTab === 'data' && renderData()}
+
+      {/* Chart Analysis Modal */}
+      {showAnalysisModal && modalChart && (
+        <ChartAnalysisModal
+          chart={modalChart}
+          chartData={modalChartData}
+          analysis={chartAnalyses[modalChart.id]?.content || ''}
+          isOpen={showAnalysisModal}
+          onClose={handleCloseAnalysisModal}
+          onRegenerate={handleRegenerateModalAnalysis}
+          isRegenerating={chartAnalyses[modalChart.id]?.isGenerating || false}
+        />
+      )}
     </div>
   );
 };

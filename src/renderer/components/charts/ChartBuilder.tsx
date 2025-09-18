@@ -583,9 +583,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         maxWidth: '1600px',
         width: '100%'
       }}>
-        {/* Left Panel - Expanded Configuration Panel */}
+        {/* Left Panel - Configuration Panel (Fixed 55%) */}
         <div style={{
-          width: '750px',
+          width: '55%',
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
@@ -2802,9 +2802,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           )}
         </div>
 
-        {/* Right Panel - Chart Preview */}
+        {/* Right Panel - Chart Preview (Fixed 45%) */}
         <div style={{
-          flex: 1,
+          width: '45%',
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',

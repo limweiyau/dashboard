@@ -1807,8 +1807,20 @@ function renderScatterPlot(
 ) {
   // For scatter plots, data contains {x, y} objects, so we need different scaling
   const allDataPoints = data.datasets.flatMap(d => d.data);
-  const xValues = allDataPoints.map((point: any) => typeof point === 'object' ? point.x : 0);
-  const yValues = allDataPoints.map((point: any) => typeof point === 'object' ? point.y : point);
+  const xValues = allDataPoints.map((point: any) => {
+    if (typeof point === 'object' && point.x !== undefined) {
+      return Number(point.x) || 0;
+    }
+    // For scatter plots, if point is not an object with x property, use index as fallback
+    return allDataPoints.indexOf(point);
+  });
+  const yValues = allDataPoints.map((point: any) => {
+    if (typeof point === 'object' && point.y !== undefined) {
+      return Number(point.y) || 0;
+    }
+    // For scatter plots, if point is not an object with y property, use the value itself
+    return Number(point) || 0;
+  });
 
   // Better domain calculation for scatter plots
   const xMin = d3.min(xValues) || 0;
