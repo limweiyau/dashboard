@@ -942,6 +942,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     }
   };
 
+  // Chart card sizing for adaptive layout
+  const getOptimalCardWidth = (templateId: string) => {
+    const smallChartTypes = ['pie-chart', 'donut-chart'];
+    const isSmallChart = smallChartTypes.includes(templateId);
+    return isSmallChart ? '500px' : '900px'; // Smaller cards for pie charts, larger for bar/line charts
+  };
+
   const getChartDimensions = (templateId: string) => {
     // 16:9 aspect ratio optimized for laptop screens
     const baseWidth = 800;
@@ -1407,9 +1414,10 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                     border: '2px solid #e2e8f0',
                     overflow: 'visible',
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
-                    width: '100%',
-                    maxWidth: 'none',
-                    minWidth: 'auto',
+                    width: 'fit-content',
+                    maxWidth: getOptimalCardWidth(config.templateId || chart.type),
+                    minWidth: '450px',
+                    margin: '0 auto', // Center the card
                     transition: 'all 0.2s ease',
                     position: 'relative'
                   }}

@@ -52,6 +52,15 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [isLayoutTransitioning, setIsLayoutTransitioning] = useState(false);
 
+  // Collapsible sections state for vertical layout
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
+    data: false,
+    layout: true,
+    axes: true,
+    colors: true,
+    style: true
+  });
+
   // Get current table data and columns based on selection
   const getCurrentTableData = () => {
     if (selectedTableId === 'main') {
@@ -116,6 +125,92 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   // Determine layout mode based on chart type
   const shouldUseVerticalLayout = (templateId: string | null): boolean => {
     return getChartLayoutType(templateId) === 'big';
+  };
+
+  // Toggle section collapse state
+  const toggleSection = (sectionKey: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
+
+  // Collapsible section wrapper component
+  const CollapsibleSection: React.FC<{
+    title: string;
+    sectionKey: string;
+    icon: string;
+    children: React.ReactNode;
+    isActive?: boolean;
+  }> = ({ title, sectionKey, icon, children, isActive = false }) => {
+    const isCollapsed = layoutMode === 'vertical' && collapsedSections[sectionKey];
+    const shouldShowCollapsible = layoutMode === 'vertical';
+
+    return (
+      <div style={{
+        marginBottom: '16px',
+        border: shouldShowCollapsible ? '1px solid #e5e7eb' : 'none',
+        borderRadius: shouldShowCollapsible ? '8px' : '0',
+        overflow: 'hidden',
+        transition: 'all 0.3s ease'
+      }}>
+        {shouldShowCollapsible && (
+          <button
+            onClick={() => toggleSection(sectionKey)}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              background: isActive
+                ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+                : isCollapsed
+                  ? '#f8fafc'
+                  : '#f1f5f9',
+              color: isActive ? '#ffffff' : '#374151',
+              border: 'none',
+              borderBottom: isCollapsed ? 'none' : '1px solid #e5e7eb',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = isCollapsed ? '#f1f5f9' : '#e2e8f0';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = isCollapsed ? '#f8fafc' : '#f1f5f9';
+              }
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>{icon}</span>
+              {title}
+            </span>
+            <span style={{
+              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+              transition: 'transform 0.3s ease',
+              fontSize: '12px'
+            }}>
+              ▼
+            </span>
+          </button>
+        )}
+        <div style={{
+          maxHeight: isCollapsed ? '0px' : '2000px',
+          opacity: isCollapsed ? 0 : 1,
+          overflow: 'hidden',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          padding: isCollapsed ? '0 16px' : '16px'
+        }}>
+          {children}
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -688,7 +783,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           {/* Configuration Panel with Tabs */}
           {selectedTemplate && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              {/* Tab Navigation */}
+              {/* Tab Navigation - Only show in horizontal layout */}
+              {layoutMode === 'horizontal' && (
               <div style={{ padding: '12px 20px 0 20px', flexShrink: 0 }}>
                 <div style={{
                   display: 'flex',
@@ -733,18 +829,25 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                   ))}
                 </div>
               </div>
+              )}
 
-              {/* Tab Content - Fixed Height */}
+              {/* Content Area - Adaptive for both layouts */}
               <div style={{
-                padding: '16px 20px',
-                height: 'calc(80vh - 220px)',
-                overflowY: 'auto',
+                padding: layoutMode === 'vertical' ? '8px' : '16px 20px',
+                height: layoutMode === 'vertical' ? 'auto' : 'calc(80vh - 220px)',
+                overflowY: layoutMode === 'vertical' ? 'visible' : 'auto',
                 overflowX: 'hidden',
-                minHeight: '500px'
+                minHeight: layoutMode === 'vertical' ? 'auto' : '500px'
               }}>
-                {/* Data Tab */}
-                {activeTab === 'data' && (
-                  <div>
+                {/* Data Section */}
+                {(layoutMode === 'horizontal' ? activeTab === 'data' : true) && (
+                  <CollapsibleSection
+                    title="Data Configuration"
+                    sectionKey="data"
+                    icon="📊"
+                    isActive={activeTab === 'data'}
+                  >
+                    <div>
                     {/* Table Selection */}
                     {projectData.tables && projectData.tables.length > 0 && (
                       <div style={{ marginBottom: '20px', padding: '16px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
@@ -934,12 +1037,19 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                       </div>
                     )}
 
-                  </div>
+                    </div>
+                  </CollapsibleSection>
                 )}
 
-                {/* Layout Tab */}
-                {activeTab === 'layout' && (
-                  <div>
+                {/* Layout Section */}
+                {(layoutMode === 'horizontal' ? activeTab === 'layout' : true) && (
+                  <CollapsibleSection
+                    title="Layout & Positioning"
+                    sectionKey="layout"
+                    icon="📐"
+                    isActive={activeTab === 'layout'}
+                  >
+                    <div>
                     {/* Layout Sub-tabs */}
                     <div style={{
                       display: 'flex',
