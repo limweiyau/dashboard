@@ -48,6 +48,10 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const [isDataSelection, setIsDataSelection] = useState(false);
   const [isLegendMappingChange, setIsLegendMappingChange] = useState(false);
 
+  // Layout management for adaptive UI
+  const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [isLayoutTransitioning, setIsLayoutTransitioning] = useState(false);
+
   // Get current table data and columns based on selection
   const getCurrentTableData = () => {
     if (selectedTableId === 'main') {
@@ -90,6 +94,28 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         originalName: key
       };
     });
+  };
+
+  // Chart size classification for adaptive layout
+  const getChartLayoutType = (templateId: string | null): 'big' | 'small' => {
+    if (!templateId) return 'big';
+
+    const bigChartTypes = [
+      'simple-bar', 'multi-series-bar', 'stacked-bar',
+      'simple-line', 'multi-line', 'area-chart',
+      'scatter-plot'
+    ];
+
+    const smallChartTypes = [
+      'pie-chart', 'donut-chart'
+    ];
+
+    return bigChartTypes.includes(templateId) ? 'big' : 'small';
+  };
+
+  // Determine layout mode based on chart type
+  const shouldUseVerticalLayout = (templateId: string | null): boolean => {
+    return getChartLayoutType(templateId) === 'big';
   };
 
   useEffect(() => {
@@ -201,6 +227,21 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       generateChartData();
     }
   }, [chartConfig, selectedTemplate, projectData, selectedTableId]);
+
+  // Handle layout transitions when chart template changes
+  useEffect(() => {
+    const newLayoutMode = shouldUseVerticalLayout(selectedTemplate?.id || null) ? 'vertical' : 'horizontal';
+
+    if (newLayoutMode !== layoutMode) {
+      setIsLayoutTransitioning(true);
+
+      // Smooth transition delay
+      setTimeout(() => {
+        setLayoutMode(newLayoutMode);
+        setTimeout(() => setIsLayoutTransitioning(false), 300);
+      }, 150);
+    }
+  }, [selectedTemplate?.id, layoutMode]);
 
   const handleTemplateSelect = (template: ChartTemplate) => {
     setSelectedTemplate(template);
@@ -578,25 +619,31 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     }}>
       <div style={{
         display: 'flex',
-        height: 'auto',
+        flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
+        height: layoutMode === 'vertical' ? 'auto' : 'auto',
         minHeight: '75vh',
-        gap: '12px',
+        gap: layoutMode === 'vertical' ? '16px' : '12px',
         maxWidth: '1600px',
-        width: '100%'
+        width: '100%',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        opacity: isLayoutTransitioning ? 0.7 : 1
       }}>
-        {/* Left Panel - Configuration Panel (Fixed 40%) */}
+        {/* Configuration Panel - Adaptive sizing */}
         <div style={{
-          width: '40%',
+          width: layoutMode === 'vertical' ? '100%' : '40%',
+          height: layoutMode === 'vertical' ? 'auto' : 'auto',
+          order: layoutMode === 'vertical' ? 2 : 1,
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
           backdropFilter: 'blur(20px)',
           display: 'flex',
           flexDirection: 'column',
-          height: 'auto',
-          minHeight: '80vh',
-          maxHeight: '85vh',
-          overflow: 'hidden'
+          height: layoutMode === 'vertical' ? 'auto' : 'auto',
+          minHeight: layoutMode === 'vertical' ? 'auto' : '80vh',
+          maxHeight: layoutMode === 'vertical' ? 'none' : '85vh',
+          overflow: 'hidden',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         }}>
           {/* Chart Type Selection - Compact Dropdown */}
           <div style={{ padding: '14px 20px 12px 20px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
@@ -2783,9 +2830,11 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           )}
         </div>
 
-        {/* Right Panel - Chart Preview (Fixed 60%) */}
+        {/* Chart Preview Panel - Adaptive sizing */}
         <div style={{
-          width: '60%',
+          width: layoutMode === 'vertical' ? '100%' : '60%',
+          height: layoutMode === 'vertical' ? '400px' : 'auto',
+          order: layoutMode === 'vertical' ? 1 : 2,
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
@@ -2793,7 +2842,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px'
+          padding: '20px',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transform: isLayoutTransitioning ? 'scale(0.95)' : 'scale(1)'
         }}>
           {selectedTemplate && chartData ? (
             <div style={{
@@ -2801,8 +2852,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               width: '100%',
-              aspectRatio: '16/9', // Fixed 16:9 aspect ratio
-              maxWidth: '800px',
+              aspectRatio: layoutMode === 'vertical' ? '16/9' : getChartLayoutType(selectedTemplate?.id || null) === 'small' ? '1/1' : '16/9',
+              maxWidth: layoutMode === 'vertical' ? '100%' : '800px',
               background: 'rgba(255, 255, 255, 0.8)',
               borderRadius: '12px',
               boxShadow: '0 8px 32px rgba(31, 38, 135, 0.37)',
@@ -2819,8 +2870,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                   paddingVertical
                 }}
                 data={chartData}
-                width={720} // Adjusted to fit within container
-                height={405} // Maintains 16:9 ratio (720 * 9/16)
+                width={layoutMode === 'vertical' ? 800 : getChartLayoutType(selectedTemplate?.id || null) === 'small' ? 400 : 720}
+                height={layoutMode === 'vertical' ? 450 : getChartLayoutType(selectedTemplate?.id || null) === 'small' ? 400 : 405}
                 forceDisableAnimation={!isDataSelection && !isLegendMappingChange}
               />
             </div>
