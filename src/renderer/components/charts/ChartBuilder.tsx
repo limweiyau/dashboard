@@ -73,6 +73,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
 
   const currentTableData = getCurrentTableData();
   const numericColumns = currentTableData.columns.filter(col => col.type === 'number');
+  const categoricalColumns = currentTableData.columns.filter(col => col.type === 'string');
   const allColumns = currentTableData.columns;
 
   // Helper function to generate columns from data if not provided
@@ -879,7 +880,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           }}
                         >
                           <option value="">Select field...</option>
-                          {allColumns.map(col => (
+                          {(selectedTemplate?.id === 'stacked-bar' ? categoricalColumns : allColumns).map(col => (
                             <option key={col.name} value={col.name}>{col.name} ({col.type})</option>
                           ))}
                         </select>
@@ -1288,33 +1289,11 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                               const chartCategory = selectedTemplate?.category;
 
                               if (chartCategory === 'bar') {
-                                return (
-                                  <div style={{
-                                    padding: '12px',
-                                    background: '#f8fafc',
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    fontSize: '13px',
-                                    color: '#64748b'
-                                  }}>
-                                    Values are displayed by default when data labels are enabled.
-                                  </div>
-                                );
+                                return null;
                               }
 
                               if (chartCategory === 'line' || chartCategory === 'area') {
-                                return (
-                                  <div style={{
-                                    padding: '12px',
-                                    background: '#f8fafc',
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    fontSize: '13px',
-                                    color: '#64748b'
-                                  }}>
-                                    Values are displayed by default when data labels are enabled.
-                                  </div>
-                                );
+                                return null;
                               }
 
                               if (chartCategory === 'pie') {
@@ -2648,13 +2627,14 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           }}
                         >
                           <option value="">Select Series Field</option>
-                          {allColumns.map(col => (
+                          {(selectedTemplate?.id === 'stacked-bar' ? categoricalColumns : allColumns).map(col => (
                             <option key={col.name} value={col.name}>{col.name} ({col.type})</option>
                           ))}
                         </select>
                       </div>
 
-                      {/* Data Aggregation */}
+                      {/* Data Aggregation - Hide for stacked bar charts */}
+                      {selectedTemplate?.id !== 'stacked-bar' && (
                       <div style={{ marginBottom: '12px' }}>
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '4px', color: '#6b7280' }}>
                           Data Aggregation
@@ -2682,6 +2662,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           How to combine values when multiple data points exist for the same series
                         </p>
                       </div>
+                      )}
                     </div>
                       </div>
                     )}
