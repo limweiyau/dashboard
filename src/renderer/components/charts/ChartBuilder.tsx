@@ -583,9 +583,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         maxWidth: '1600px',
         width: '100%'
       }}>
-        {/* Left Panel - Configuration Panel (Fixed 55%) */}
+        {/* Left Panel - Configuration Panel (Fixed 40%) */}
         <div style={{
-          width: '55%',
+          width: '40%',
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
@@ -2802,9 +2802,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           )}
         </div>
 
-        {/* Right Panel - Chart Preview (Fixed 45%) */}
+        {/* Right Panel - Chart Preview (Fixed 60%) */}
         <div style={{
-          width: '45%',
+          width: '60%',
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
@@ -2820,7 +2820,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               width: '100%',
-              height: '100%',
+              aspectRatio: '16/9', // Fixed 16:9 aspect ratio
+              maxWidth: '800px',
               background: 'rgba(255, 255, 255, 0.8)',
               borderRadius: '12px',
               boxShadow: '0 8px 32px rgba(31, 38, 135, 0.37)',
@@ -2828,7 +2829,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               border: '1px solid rgba(255, 255, 255, 0.18)',
               transition: 'all 0.3s ease',
               opacity: chartOpacity,
-              padding: '40px'
+              padding: '20px'
             }}>
               <ChartRenderer
                 config={{
@@ -2837,8 +2838,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                   paddingVertical
                 }}
                 data={chartData}
-                width={800} // Match "Your Charts" page size
-                height={500} // Match "Your Charts" page size
+                width={720} // Adjusted to fit within container
+                height={405} // Maintains 16:9 ratio (720 * 9/16)
                 forceDisableAnimation={!isDataSelection && !isLegendMappingChange}
               />
             </div>

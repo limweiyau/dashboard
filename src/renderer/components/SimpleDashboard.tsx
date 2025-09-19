@@ -1663,7 +1663,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                     </div>
 
 
-                    {/* Chart Content - Simplified without Analysis and Insights */}
+                    {/* Chart Content - Properly wrapped with 16:9 aspect ratio */}
                     <div style={{
                       padding: '24px',
                       background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
@@ -1672,30 +1672,44 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                       justifyContent: 'center',
                       alignItems: 'center'
                     }}>
-                      {chartData ? (
-                        <ChartRenderer
-                          config={config}
-                          data={chartData}
-                          width={dimensions.width}
-                          height={dimensions.height}
-                          forceDisableAnimation={false}
-                        />
-                      ) : (
-                        <div style={{
-                          height: `${dimensions.height}px`,
-                          width: `${dimensions.width}px`,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                          border: '2px dashed #cbd5e1',
-                          borderRadius: '12px'
-                        }}>
-                          <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔍</div>
-                          <div style={{ fontSize: '14px', color: '#64748b', textAlign: 'center' }}>No Data Found</div>
-                        </div>
-                      )}
+                      <div style={{
+                        width: '100%',
+                        maxWidth: '800px',
+                        aspectRatio: '16/9', // Fixed 16:9 aspect ratio container
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px'
+                      }}>
+                        {chartData ? (
+                          <ChartRenderer
+                            config={config}
+                            data={chartData}
+                            width={720} // Adjusted to fit within 16:9 container
+                            height={405} // Maintains 16:9 ratio (720 * 9/16)
+                            forceDisableAnimation={false}
+                          />
+                        ) : (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                            border: '2px dashed #cbd5e1',
+                            borderRadius: '8px'
+                          }}>
+                            <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔍</div>
+                            <div style={{ fontSize: '14px', color: '#64748b', textAlign: 'center' }}>No Data Found</div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
