@@ -26,17 +26,13 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
 
   const config = chart.config as ChartConfiguration;
 
-  // Calculate chart dimensions for modal (slightly smaller than full size)
+  // Calculate chart dimensions for modal (same size as Your Charts)
   const getModalChartDimensions = (templateId: string) => {
-    const baseWidth = 700; // Smaller than full size for modal
-    const baseHeight = 400; // 16:9 aspect ratio maintained
+    const baseWidth = 700;
+    const baseHeight = Math.max(Math.round(baseWidth * 9 / 16), 480); // 16:9 aspect ratio, same as Your Charts
 
-    switch (templateId) {
-      case 'pie-chart':
-        return { width: 450, height: 450 };
-      default:
-        return { width: baseWidth, height: baseHeight };
-    }
+    // All charts use same size - no special case for pie charts
+    return { width: baseWidth, height: baseHeight };
   };
 
   const dimensions = getModalChartDimensions(config.templateId || chart.type);
@@ -58,9 +54,9 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
       <div style={{
         background: 'white',
         borderRadius: '16px',
-        width: '90vw',
-        maxWidth: '1200px',
-        maxHeight: '90vh',
+        width: '95vw',
+        maxWidth: '1400px',
+        maxHeight: '95vh',
         overflow: 'hidden',
         boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
         display: 'flex',
@@ -165,7 +161,7 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
         }}>
           {/* Chart Section */}
           <div style={{
-            width: '55%',
+            width: '60%',
             padding: '32px',
             display: 'flex',
             alignItems: 'center',
@@ -199,58 +195,151 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
             )}
           </div>
 
-          {/* Analysis Section */}
+          {/* Right Panel */}
           <div style={{
-            width: '45%',
-            padding: '32px',
-            overflow: 'auto',
-            background: 'white'
+            width: '40%',
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#f8fafc',
+            padding: '24px',
+            gap: '20px',
+            overflow: 'auto'
           }}>
-            <div style={{
-              fontSize: '18px',
-              fontWeight: '600',
-              color: '#1e293b',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              🤖 AI Analysis & Insights
-            </div>
+            {analysis ? (
+              (() => {
+                // Split analysis into sections, removing any "Analysis:" or "Insights:" prefixes
+                const sections = analysis.split(/(?:\n\s*){2,}/).filter(section => section.trim());
 
-            <div style={{
-              fontSize: '14px',
-              lineHeight: '1.6',
-              color: '#374151',
-              whiteSpace: 'pre-wrap'
-            }}>
-              {analysis || 'No analysis available. Click "Regenerate" to generate insights for this chart.'}
-            </div>
+                // Clean sections by removing common prefixes
+                const cleanedSections = sections.map(section =>
+                  section.replace(/^(Analysis|Insights|Recommendations?):\s*/i, '').trim()
+                ).filter(section => section.length > 0);
 
-            {/* Analysis Footer */}
-            <div style={{
-              marginTop: '24px',
-              padding: '16px',
-              background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-              borderRadius: '8px',
-              border: '1px solid #bae6fd'
-            }}>
+                // Distribute content across three sections
+                const analysisContent = cleanedSections[0] || '';
+                const insightsContent = cleanedSections.slice(1, -1).join('\n\n') ||
+                  (cleanedSections.length > 1 ? cleanedSections[cleanedSections.length - 1] : '');
+                const recommendationsContent = cleanedSections.length > 2 ?
+                  cleanedSections[cleanedSections.length - 1] :
+                  'Consider applying filters and exploring different time periods to uncover additional patterns in your data.';
+
+                return (
+                  <>
+                    {/* Analysis Section */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                      border: '2px solid #93c5fd',
+                      borderRadius: '16px',
+                      padding: '20px'
+                    }}>
+                      <h3 style={{
+                        margin: '0 0 16px 0',
+                        fontSize: '16px',
+                        fontWeight: '700',
+                        color: '#1e40af',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        📊 Analysis
+                      </h3>
+                      <div style={{
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        color: '#1e3a8a',
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {analysisContent}
+                      </div>
+                    </div>
+
+                    {/* Insights Section */}
+                    {insightsContent && (
+                      <div style={{
+                        background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+                        border: '2px solid #86efac',
+                        borderRadius: '16px',
+                        padding: '20px'
+                      }}>
+                        <h3 style={{
+                          margin: '0 0 16px 0',
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          color: '#166534',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          💡 Insights
+                        </h3>
+                        <div style={{
+                          fontSize: '14px',
+                          lineHeight: '1.6',
+                          color: '#14532d',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {insightsContent}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recommendations Section */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                      border: '2px solid #fbbf24',
+                      borderRadius: '16px',
+                      padding: '20px'
+                    }}>
+                      <h3 style={{
+                        margin: '0 0 16px 0',
+                        fontSize: '16px',
+                        fontWeight: '700',
+                        color: '#92400e',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        🎯 Recommendations
+                      </h3>
+                      <div style={{
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        color: '#78350f',
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {recommendationsContent}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()
+            ) : (
               <div style={{
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#0369a1',
-                marginBottom: '4px'
+                background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                border: '2px dashed #cbd5e1',
+                borderRadius: '16px',
+                padding: '40px 20px',
+                textAlign: 'center'
               }}>
-                💡 Tip
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
+                <h3 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#475569'
+                }}>
+                  No Analysis Yet
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: '#64748b',
+                  lineHeight: '1.5'
+                }}>
+                  Click "Regenerate" in the header to generate AI-powered insights for this chart.
+                </p>
               </div>
-              <div style={{
-                fontSize: '11px',
-                color: '#0c4a6e',
-                lineHeight: '1.4'
-              }}>
-                This analysis is generated by AI based on your chart data. Use it as a starting point for deeper investigation.
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

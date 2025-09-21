@@ -1,3 +1,5 @@
+import { ChartConfiguration } from './charts';
+
 export interface Project {
   id: string;
   name: string;
@@ -48,7 +50,7 @@ export interface Chart {
   id: string;
   name: string;
   type: 'none' | 'bar' | 'line' | 'pie' | 'doughnut' | 'scatter' | 'area' | 'histogram' | 'bubble' | 'radar' | 'polarArea' | 'stacked-bar' | 'stacked-area' | 'combo';
-  config: ChartConfig;
+  config: ChartConfiguration;
   createdAt: string;
   updatedAt: string;
 }

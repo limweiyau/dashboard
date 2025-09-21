@@ -147,6 +147,9 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
+      {/* Window drag region for frameless window */}
+      <div className="window-drag-region"></div>
+
       {/* Top Navigation Bar */}
       <nav style={{
         background: '#ffffff',

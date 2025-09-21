@@ -18,6 +18,23 @@ body {
   flex-direction: column;
 }
 
+/* Window drag region for frameless window */
+.window-drag-region {
+  -webkit-app-region: drag;
+  height: 24px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+/* Make sure interactive elements are not draggable */
+button, input, select, textarea {
+  -webkit-app-region: no-drag;
+}
+
 /* Layout */
 .app {
   display: flex;

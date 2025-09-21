@@ -65,6 +65,7 @@ export interface ChartConfiguration {
     showValue?: boolean;
     showPercentage?: boolean;
     showSeriesName?: boolean;
+    showCoordinates?: boolean;
   };
   paddingHorizontal?: number;
   paddingVertical?: number;
@@ -109,7 +110,7 @@ export interface ChartData {
   labels: string[];
   datasets: {
     label: string;
-    data: number[];
+    data: number[] | {x: number, y: number}[];
     backgroundColor?: string | string[];
     borderColor?: string | string[];
     borderWidth?: number;

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Project, ProjectData, Chart, Dashboard, Settings } from '../types';
+import { Project, ProjectData, Chart, Dashboard, Settings, DateRange } from '../types';
 import { ChartConfiguration, ChartData } from '../types/charts';
 import ChartBuilder from './charts/ChartBuilder';
 import ChartRenderer from './charts/ChartRenderer';
-import DashboardBuilder from './DashboardBuilder';
 import DataImport from './DataImport';
 import ChartAnalysisModal from './ChartAnalysisModal';
 import { applySlicersToData } from '../utils/slicerUtils';
@@ -32,7 +31,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'charts' | 'data'>('data');
   const [selectedChart, setSelectedChart] = useState<Chart | null>(null);
-  const [selectedDashboard, setSelectedDashboard] = useState<Dashboard | null>(null);
   const [showDataImport, setShowDataImport] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState<string | null>(null);
   const [selectedDateRanges, setSelectedDateRanges] = useState<string[]>([]);
@@ -41,6 +39,10 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   const [hasRestoredAnalyses, setHasRestoredAnalyses] = useState(false);
   const [editingTableName, setEditingTableName] = useState(false);
   const [tableName, setTableName] = useState(projectData.name || 'Dataset');
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
+  const [showDateRangeManager, setShowDateRangeManager] = useState(false);
 
   // Modal analysis states
   const [modalChart, setModalChart] = useState<Chart | null>(null);
@@ -76,22 +78,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       setHasRestoredAnalyses(true);
     }
   }, [analysisStorageKey]);
-
-  // Auto-regenerate analysis when filters change (date ranges, slicers)
-  // Removed automatic analysis generation - now only generates when explicitly requested
-  // useEffect(() => {
-  //   if (!hasRestoredAnalyses || activeTab !== 'charts') {
-  //     return;
-  //   }
-
-  //   projectData.charts.forEach(chart => {
-  //     const chartData = generateChartData(chart);
-  //     // Only regenerate if chart has data and analysis already exists (meaning it was manually generated before)
-  //     if (chartData && chartData.labels && chartData.labels.length > 0 && chartAnalyses[chart.id] && !chartAnalyses[chart.id].isGenerating) {
-  //       generateChartAnalysis(chart, chartData);
-  //     }
-  //   });
-  // }, [hasRestoredAnalyses, activeTab, selectedDateRange, selectedDateRanges, projectData.slicers, projectData.charts]); // Trigger when filters change
 
   useEffect(() => {
     if (!hasRestoredAnalyses || typeof window === 'undefined') {
@@ -135,612 +121,98 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     });
   }, [projectData.charts]);
 
-  const createChartSummaryData = (sourceData: any[], config: ChartConfiguration, chartData: ChartData | null): any[] => {
-    if (!chartData || !chartData.labels || !chartData.datasets?.length) {
-      return [];
-    }
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportWidth(typeof window !== 'undefined' ? window.innerWidth : 1200);
+    };
 
-    const labels = chartData.labels;
-    const datasets = chartData.datasets;
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-    // For multi-series charts, create a comprehensive summary including ALL series
-    const summaryData: any[] = [];
+  const minWidthForWideChart = (vw: number) => Math.max(640, Math.round(vw * 0.55));
 
-    labels.forEach((label, labelIndex) => {
-      datasets.forEach((dataset, datasetIndex) => {
-        const dataPoint: any = {};
+  // Get optimized chart display configuration
+  const getChartDisplayConfig = (chartType: string, templateId?: string, containerWidth: number = viewportWidth) => {
+    const type = (templateId || chartType || '').toLowerCase();
 
-        // Add the X-axis/category field
-        if (config.xAxisField || config.categoryField) {
-          const xField = config.xAxisField || config.categoryField;
-          dataPoint[xField] = label;
-        } else {
-          dataPoint['category'] = label;
-        }
+    const isCompactChart = ['pie', 'donut', 'gauge', 'circle'].some(keyword => type.includes(keyword));
 
-        // Add the series/category information
-        if (config.seriesField) {
-          dataPoint[config.seriesField] = dataset.label || `Series ${datasetIndex + 1}`;
-        } else if (datasets.length > 1) {
-          dataPoint['series'] = dataset.label || `Series ${datasetIndex + 1}`;
-        }
+    const columns = containerWidth >= 880 ? 2 : 1;
+    const horizontalPadding = 48; // combined page padding and gutter
+    const gap = 20;
+    const availableWidth = containerWidth - horizontalPadding - gap * (columns - 1);
+    const targetCardWidth = Math.floor(availableWidth / Math.max(columns, 1));
+    const fullRowWidth = columns > 1 ? availableWidth : targetCardWidth;
 
-        // Add the Y-axis/value field
-        if (config.yAxisField || config.valueField) {
-          const yField = config.yAxisField || config.valueField;
-          dataPoint[yField] = dataset.data[labelIndex];
-        } else {
-          dataPoint['value'] = dataset.data[labelIndex];
-        }
+    const builderPreviewWidth = Math.min(
+      Math.max((viewportWidth * 0.6) - 40, 320),
+      viewportWidth - 200
+    );
 
-        summaryData.push(dataPoint);
-      });
+    // Use same width for all charts, but different heights
+    const previewWidth = Math.min(Math.max(builderPreviewWidth, minWidthForWideChart(viewportWidth)), fullRowWidth - 40);
+
+    const chartWidth = Math.round(previewWidth);
+    // ALL charts in Your Charts section use same 16:9 aspect ratio
+    const baseHeight = Math.max(Math.round(chartWidth * 9 / 16), 480);
+    const chartHeight = baseHeight;
+    const cardMinHeight = chartHeight + 130;
+    const cardWidth = chartWidth + 32;
+
+    return {
+      isCompact: isCompactChart,
+      cardWidth,
+      chartWidth,
+      chartHeight,
+      cardMinHeight
+    };
+  };
+
+  const handleDateRangeAdd = (dateRange: DateRange) => {
+    const existingRanges = projectData.dateRanges || [];
+    const updatedRanges = [...existingRanges, dateRange];
+    onProjectUpdate({
+      ...projectData,
+      dateRanges: updatedRanges
     });
-
-    return summaryData;
   };
 
-  const generateChartAnalysis = async (chart: Chart, chartData: ChartData | null) => {
-    const chartId = chart.id;
-
-    // Set generating state
-    setChartAnalyses(prev => ({
-      ...prev,
-      [chartId]: {
-        content: prev[chartId]?.content ?? '',
-        isGenerating: true
-      }
-    }));
-
-    try {
-      const config = chart.config as ChartConfiguration;
-
-      // Get the source data used for this chart
-      let sourceData: any[] = projectData.data;
-
-      if (config.tableId && config.tableId !== 'main') {
-        const selectedTable = projectData.tables?.find(table => table.id === config.tableId);
-        if (selectedTable) {
-          sourceData = selectedTable.data;
-        }
-      }
-
-      // Apply the same filters as in generateChartData
-      sourceData = applyDateRangeFilter(sourceData);
-      if (config.appliedSlicers && config.appliedSlicers.length > 0) {
-        sourceData = applySlicersToData(sourceData, config.appliedSlicers, projectData.slicers);
-      }
-
-      if (!sourceData.length) {
-        throw new Error('No data available for analysis');
-      }
-
-      // Use GeminiClient for analysis generation
-      if (!settings?.apiKeys?.gemini) {
-        throw new Error('Gemini API key not configured. Please set it in Settings.');
-      }
-
-      // Create chart-specific summary data that matches what's actually displayed
-      const chartSummaryData = createChartSummaryData(sourceData, config, chartData);
-
-      const geminiClient = new GeminiClient(settings.apiKeys.gemini);
-      const selectedModel = settings.selectedModels?.gemini || 'gemini-2.5-flash';
-      const analysis = await geminiClient.generateChartInsights(chartSummaryData, config, selectedModel);
-
-      setChartAnalyses(prev => ({
-        ...prev,
-        [chartId]: { content: analysis, isGenerating: false }
-      }));
-
-    } catch (error) {
-      console.error('Analysis generation failed:', error);
-
-      // Fallback to a simple template-based analysis
-      const config = chart.config as ChartConfiguration;
-
-      // Get source data for fallback analysis too
-      let sourceData: any[] = projectData.data;
-      if (config.tableId && config.tableId !== 'main') {
-        const selectedTable = projectData.tables?.find(table => table.id === config.tableId);
-        if (selectedTable) {
-          sourceData = selectedTable.data;
-        }
-      }
-      sourceData = applyDateRangeFilter(sourceData);
-      if (config.appliedSlicers && config.appliedSlicers.length > 0) {
-        sourceData = applySlicersToData(sourceData, config.appliedSlicers, projectData.slicers);
-      }
-
-      const fallbackAnalysis = generateFallbackAnalysis(chart, sourceData, config, chartData);
-
-      setChartAnalyses(prev => ({
-        ...prev,
-        [chartId]: { content: fallbackAnalysis, isGenerating: false, error: 'Using fallback analysis' }
-      }));
-    }
-  };
-
-  // Modal analysis handlers
-  const handleShowAnalysisModal = (chart: Chart) => {
-    const chartData = generateChartData(chart);
-    setModalChart(chart);
-    setModalChartData(chartData);
-    setShowAnalysisModal(true);
-  };
-
-  const handleCloseAnalysisModal = () => {
-    setShowAnalysisModal(false);
-    setModalChart(null);
-    setModalChartData(null);
-  };
-
-  const handleRegenerateModalAnalysis = () => {
-    if (modalChart) {
-      generateChartAnalysis(modalChart, modalChartData);
-    }
-  };
-
-  const getAnalysisButtonState = (chart: Chart) => {
-    const analysisState = chartAnalyses[chart.id];
-    const hasAnalysis = Boolean(analysisState?.content?.trim());
-    const isGenerating = Boolean(analysisState?.isGenerating);
-
-    if (isGenerating) {
-      return { type: 'generating' as const, label: 'Generating...', disabled: true };
-    } else if (hasAnalysis) {
-      return { type: 'show' as const, label: 'Analysis', disabled: false };
-    } else {
-      return { type: 'generate' as const, label: 'Generate', disabled: false };
-    }
-  };
-
-  const generateFallbackAnalysis = (
-    chart: Chart,
-    rawData: any[],
-    config: ChartConfiguration,
-    chartRenderData?: ChartData | null
-  ): string => {
-    const chartTypeKey = (chart.type || '').toLowerCase();
-    const templateId = (config.templateId || chart.type || '').toLowerCase();
-    const chartTypeLabel = chart.type.replace('-', ' ');
-
-    const safeValue = (value: any): number => {
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        return value;
-      }
-      if (typeof value === 'string' && value.trim() !== '') {
-        const parsed = Number(value);
-        if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-          return parsed;
-        }
-      }
-      return 0;
-    };
-
-    const formatValue = (value: number): string => {
-      if (!Number.isFinite(value)) {
-        return '0';
-      }
-      const abs = Math.abs(value);
-      const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
-      return value.toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: digits
-      });
-    };
-
-    const formatPercent = (part: number, total: number): string => {
-      if (!Number.isFinite(part) || !Number.isFinite(total) || total === 0) {
-        return '0%';
-      }
-      return `${((part / total) * 100).toFixed(1)}%`;
-    };
-
-    const joinSentences = (parts: string[]) => parts.filter(Boolean).join(' ');
-
-    const datasets = chartRenderData?.datasets || [];
-    const labels = chartRenderData?.labels || [];
-    const hasChartValues = datasets.some(ds => Array.isArray(ds.data) && ds.data.length > 0);
-
-    const isPieChart = templateId.includes('pie') || chartTypeKey === 'pie';
-    const isBarChart = templateId.includes('bar') || chartTypeKey.includes('bar');
-    const isLineChart = templateId.includes('line') || chartTypeKey.includes('line');
-    const isAreaChart = templateId.includes('area') || chartTypeKey.includes('area');
-    const isScatterChart = templateId.includes('scatter') || chartTypeKey.includes('scatter');
-
-    if (isPieChart && hasChartValues) {
-      const primaryDataset = datasets[0];
-      if (primaryDataset && Array.isArray(primaryDataset.data) && primaryDataset.data.length > 0) {
-        const slices = primaryDataset.data.map((value, index) => ({
-          label: labels[index] || `Slice ${index + 1}`,
-          value: safeValue(value)
-        })).filter(slice => slice.label && Number.isFinite(slice.value));
-
-        const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-
-        if (total > 0 && slices.length > 0) {
-          const sorted = [...slices].sort((a, b) => b.value - a.value);
-          const top = sorted[0];
-          const second = sorted[1];
-          const bottom = sorted[sorted.length - 1];
-          const topShare = total === 0 ? 0 : (top.value / total) * 100;
-
-          const analysisParts = [
-            `This pie chart compares ${slices.length} categories with a combined total of ${formatValue(total)}.`,
-            top ? `${top.label} is the largest segment at ${formatValue(top.value)} (${formatPercent(top.value, total)}).` : '',
-            second ? `${second.label} follows at ${formatValue(second.value)} (${formatPercent(second.value, total)}).` : '',
-            bottom && bottom.label !== top.label ? `${bottom.label} represents the smallest share at ${formatValue(bottom.value)} (${formatPercent(bottom.value, total)}).` : ''
-          ];
-
-          const insightsParts = [
-            top ? `Prioritize ${top.label}, which contributes ${formatPercent(top.value, total)} of the whole.` : '',
-            bottom && bottom.label !== top.label ? `Explore ways to grow ${bottom.label}, currently the weakest slice.` : '',
-            topShare > 50 ? `Mitigate risk by diversifying so results are not overly dependent on ${top.label}.` : ''
-          ];
-
-          return `ANALYSIS:\n${joinSentences(analysisParts)}\n\nINSIGHTS:\n${joinSentences(insightsParts) || 'Review category mix and identify opportunities to balance the distribution.'}`;
-        }
-      }
-    }
-
-    if ((isLineChart || isAreaChart) && hasChartValues) {
-      const effectiveLabels = labels.length
-        ? labels
-        : (datasets[0]?.data || []).map((_, idx) => `Point ${idx + 1}`);
-
-      const seriesSummaries = datasets.map((ds, seriesIndex) => {
-        if (!Array.isArray(ds.data) || ds.data.length === 0) {
-          return null;
-        }
-
-        const values = ds.data.map(val => safeValue(val));
-        const numericValues = values.filter(val => Number.isFinite(val));
-
-        if (!numericValues.length) {
-          return null;
-        }
-
-        const lastIndex = Math.min(values.length - 1, effectiveLabels.length - 1);
-        const first = values[0];
-        const last = values[lastIndex];
-        const maxVal = Math.max(...numericValues);
-        const minVal = Math.min(...numericValues);
-        const maxIndex = values.indexOf(maxVal);
-        const minIndex = values.indexOf(minVal);
-
-        return {
-          label: ds.label || `Series ${seriesIndex + 1}`,
-          values,
-          first,
-          last,
-          maxVal,
-          minVal,
-          maxLabel: effectiveLabels[Math.max(0, Math.min(maxIndex, effectiveLabels.length - 1))] || `Point ${maxIndex + 1}`,
-          minLabel: effectiveLabels[Math.max(0, Math.min(minIndex, effectiveLabels.length - 1))] || `Point ${minIndex + 1}`,
-          change: last - first
-        };
-      }).filter(Boolean) as Array<{
-        label: string;
-        values: number[];
-        first: number;
-        last: number;
-        maxVal: number;
-        minVal: number;
-        maxLabel: string;
-        minLabel: string;
-        change: number;
-      }>;
-
-      if (seriesSummaries.length) {
-        const firstLabel = effectiveLabels[0] || 'start';
-        const lastLabel = effectiveLabels[effectiveLabels.length - 1] || 'end';
-        const leadingSeries = seriesSummaries.reduce((best, current) => current.last > best.last ? current : best, seriesSummaries[0]);
-        const trailingSeries = seriesSummaries.reduce((worst, current) => current.last < worst.last ? current : worst, seriesSummaries[0]);
-        const peakSeries = seriesSummaries.reduce((best, current) => current.maxVal > best.maxVal ? current : best, seriesSummaries[0]);
-
-        const analysisParts = [
-          `This ${chartTypeLabel} tracks ${seriesSummaries.length} series across ${effectiveLabels.length} points from ${firstLabel} to ${lastLabel}.`,
-          seriesSummaries.length === 1
-            ? (() => {
-                const single = seriesSummaries[0];
-                if (single.last > single.first) {
-                  return `Values climb from ${formatValue(single.first)} in ${firstLabel} to ${formatValue(single.last)} in ${lastLabel}.`;
-                }
-                if (single.last < single.first) {
-                  return `Values decline from ${formatValue(single.first)} in ${firstLabel} to ${formatValue(single.last)} in ${lastLabel}.`;
-                }
-                return `Values stay near ${formatValue(single.first)} throughout the period.`;
-              })()
-            : `${leadingSeries.label} finishes highest at ${formatValue(leadingSeries.last)} in ${lastLabel}, while ${trailingSeries.label} closes at ${formatValue(trailingSeries.last)}.`,
-          peakSeries ? `${peakSeries.label} peaks at ${formatValue(peakSeries.maxVal)} in ${peakSeries.maxLabel}, compared with a low of ${formatValue(peakSeries.minVal)} in ${peakSeries.minLabel}.` : ''
-        ];
-
-        const insightsParts = [
-          seriesSummaries.length === 1
-            ? (
-              seriesSummaries[0].change > 0
-                ? `Keep reinforcing the drivers behind the upswing after ${peakSeries.maxLabel}.`
-                : seriesSummaries[0].change < 0
-                  ? `Investigate factors causing the slide after ${peakSeries.maxLabel}.`
-                  : 'Introduce new initiatives to spark movement—the series is flat across the period.'
-            )
-            : `Share the playbook from ${leadingSeries.label}; it outperforms ${trailingSeries.label} by ${formatValue(leadingSeries.last - trailingSeries.last)} in the final period.`,
-          peakSeries ? `Use the peak of ${formatValue(peakSeries.maxVal)} in ${peakSeries.maxLabel} as a benchmark for future periods.` : ''
-        ];
-
-        return `ANALYSIS:\n${joinSentences(analysisParts)}\n\nINSIGHTS:\n${joinSentences(insightsParts)}`;
-      }
-    }
-
-    if (isBarChart && hasChartValues) {
-      const effectiveLabels = labels.length
-        ? labels
-        : (datasets[0]?.data || []).map((_, idx) => `Category ${idx + 1}`);
-
-      const categorySummaries = effectiveLabels.map((label, labelIndex) => {
-        const values = datasets.map(ds => {
-          if (!Array.isArray(ds.data)) {
-            return 0;
-          }
-          return safeValue(ds.data[labelIndex]);
-        });
-
-        const total = values.reduce((sum, val) => sum + val, 0);
-
-        return {
-          label: label || `Category ${labelIndex + 1}`,
-          total,
-          values
-        };
-      }).filter(summary => Number.isFinite(summary.total));
-
-      if (categorySummaries.length) {
-        const sorted = [...categorySummaries].sort((a, b) => b.total - a.total);
-        const top = sorted[0];
-        const bottom = sorted[sorted.length - 1];
-        const average = categorySummaries.reduce((sum, cat) => sum + cat.total, 0) / categorySummaries.length;
-
-        const seriesTotals = datasets.length > 0
-          ? datasets.map((ds, seriesIndex) => {
-              if (!Array.isArray(ds.data)) {
-                return { label: ds.label || `Series ${seriesIndex + 1}`, total: 0 };
-              }
-              const total = ds.data.reduce((sum, value) => sum + safeValue(value), 0);
-              return { label: ds.label || `Series ${seriesIndex + 1}`, total };
-            })
-          : [];
-
-        const leadingSeries = seriesTotals.length > 0
-          ? seriesTotals.reduce((best, current) => current.total > best.total ? current : best, seriesTotals[0])
-          : null;
-        const trailingSeries = seriesTotals.length > 0
-          ? seriesTotals.reduce((worst, current) => current.total < worst.total ? current : worst, seriesTotals[0])
-          : null;
-
-        const analysisParts = [
-          `This ${chartTypeLabel} compares ${categorySummaries.length} categories.`,
-          top ? `${top.label} leads with ${formatValue(top.total)}.` : '',
-          bottom && bottom.label !== top.label ? `${bottom.label} trails at ${formatValue(bottom.total)}.` : '',
-          Number.isFinite(average) ? `Average performance across categories is ${formatValue(average)}.` : '',
-          leadingSeries ? `${leadingSeries.label} contributes the most overall, totaling ${formatValue(leadingSeries.total)}.` : ''
-        ];
-
-        const insightsParts = [
-          top ? `Keep investing in ${top.label}; it sets the pace.` : '',
-          bottom && bottom.label !== top.label ? `Audit ${bottom.label} to uncover blockers—it lags the rest.` : '',
-          leadingSeries && trailingSeries && leadingSeries.label !== trailingSeries.label
-            ? `Share tactics from ${leadingSeries.label}; it outperforms ${trailingSeries.label} by ${formatValue(leadingSeries.total - trailingSeries.total)}.`
-            : ''
-        ];
-
-        return `ANALYSIS:\n${joinSentences(analysisParts)}\n\nINSIGHTS:\n${joinSentences(insightsParts) || 'Use the bar comparison to replicate strengths and shore up weak contributors.'}`;
-      }
-    }
-
-    if (isScatterChart && hasChartValues) {
-      const primaryDataset = datasets[0];
-      if (primaryDataset && Array.isArray(primaryDataset.data) && primaryDataset.data.length > 0) {
-        const points = primaryDataset.data.map(point => {
-          if (point && typeof point === 'object' && 'x' in point && 'y' in point) {
-            return { x: safeValue((point as any).x), y: safeValue((point as any).y) };
-          }
-          if (Array.isArray(point) && point.length >= 2) {
-            return { x: safeValue(point[0]), y: safeValue(point[1]) };
-          }
-          return null;
-        }).filter(Boolean) as { x: number; y: number }[];
-
-        if (points.length) {
-          const xs = points.map(p => p.x);
-          const ys = points.map(p => p.y);
-          const mean = (values: number[]) => values.reduce((sum, val) => sum + val, 0) / values.length;
-          const meanX = mean(xs);
-          const meanY = mean(ys);
-
-          let covariance = 0;
-          let varianceX = 0;
-          let varianceY = 0;
-
-          points.forEach(point => {
-            const dx = point.x - meanX;
-            const dy = point.y - meanY;
-            covariance += dx * dy;
-            varianceX += dx * dx;
-            varianceY += dy * dy;
-          });
-
-          const correlation = varianceX === 0 || varianceY === 0
-            ? 0
-            : covariance / Math.sqrt(varianceX * varianceY);
-          const corrRounded = Number(correlation.toFixed(2));
-          const absCorrelation = Math.abs(corrRounded);
-
-          let correlationDescription = `minimal linear correlation (r=${corrRounded})`;
-          if (absCorrelation >= 0.7) {
-            correlationDescription = `a strong ${corrRounded >= 0 ? 'positive' : 'negative'} correlation (r=${corrRounded})`;
-          } else if (absCorrelation >= 0.4) {
-            correlationDescription = `a moderate ${corrRounded >= 0 ? 'positive' : 'negative'} correlation (r=${corrRounded})`;
-          } else if (absCorrelation >= 0.2) {
-            correlationDescription = `a weak ${corrRounded >= 0 ? 'positive' : 'negative'} correlation (r=${corrRounded})`;
-          }
-
-          const minX = Math.min(...xs);
-          const maxX = Math.max(...xs);
-          const minY = Math.min(...ys);
-          const maxY = Math.max(...ys);
-
-          const analysisParts = [
-            `This scatter plot charts ${points.length} observations.`,
-            `There is ${correlationDescription}.`,
-            `X spans ${formatValue(minX)} to ${formatValue(maxX)}, while Y ranges from ${formatValue(minY)} to ${formatValue(maxY)}.`
-          ];
-
-          const insightsParts = [
-            corrRounded >= 0.35
-              ? 'Leverage the positive relationship—boosting the X driver should lift Y as well.'
-              : corrRounded <= -0.35
-                ? 'Reduce the factors on the X axis that are dragging Y downward.'
-                : 'Group the points by segment or add more context to uncover stronger relationships.'
-          ];
-
-          return `ANALYSIS:\n${joinSentences(analysisParts)}\n\nINSIGHTS:\n${joinSentences(insightsParts)}`;
-        }
-      }
-    }
-
-    const totalPoints = rawData.length;
-    const baseAnalysis = totalPoints > 0
-      ? `This ${chartTypeLabel} summarizes ${totalPoints} data points${labels.length ? ` across ${labels.length} categories` : ''}.`
-      : `This ${chartTypeLabel} does not have enough data to summarize yet.`;
-    const baseInsight = totalPoints > 0
-      ? 'Use this view to highlight extremes and decide where to focus next.'
-      : 'Add or expand data for this chart to unlock automated insights.';
-
-    return `ANALYSIS:\n${baseAnalysis}\n\nINSIGHTS:\n${baseInsight}`;
-  };
-
-  const handleDataImport = (data: any[], columns: any[], fileName?: string) => {
-    const updatedData = {
+  const handleDateRangeUpdate = (dateRange: DateRange) => {
+    const existingRanges = projectData.dateRanges || [];
+    const updatedRanges = existingRanges.map(range =>
+      range.id === dateRange.id ? dateRange : range
+    );
+    onProjectUpdate({
       ...projectData,
-      data,
-      columns
-    };
-    onProjectUpdate(updatedData);
-    setShowDataImport(false);
-  };
-
-  const handleDateRangeAdd = (dateRange: any) => {
-    const updatedData = {
-      ...projectData,
-      dateRanges: [...(projectData.dateRanges || []), dateRange]
-    };
-    onProjectUpdate(updatedData);
-  };
-
-  const handleDateRangeUpdate = (dateRange: any) => {
-    const updatedData = {
-      ...projectData,
-      dateRanges: (projectData.dateRanges || []).map(range =>
-        range.id === dateRange.id ? dateRange : range
-      )
-    };
-    onProjectUpdate(updatedData);
+      dateRanges: updatedRanges
+    });
   };
 
   const handleDateRangeDelete = (id: string) => {
-    const updatedData = {
+    const existingRanges = projectData.dateRanges || [];
+    const updatedRanges = existingRanges.filter(range => range.id !== id);
+    onProjectUpdate({
       ...projectData,
-      dateRanges: (projectData.dateRanges || []).filter(range => range.id !== id)
-    };
-    onProjectUpdate(updatedData);
+      dateRanges: updatedRanges
+    });
+    setSelectedDateRanges(prev => prev.filter(rangeId => rangeId !== id));
     if (selectedDateRange === id) {
       setSelectedDateRange(null);
     }
   };
 
-  const applyDateRangeFilter = (data: any[]) => {
-    // Use multi-select if available, otherwise fall back to single selection
-    const activeDateRanges = selectedDateRanges.length > 0 ? selectedDateRanges : (selectedDateRange ? [selectedDateRange] : []);
-
-    if (activeDateRanges.length === 0 || !projectData.dateRanges) {
-      return data;
+  const handleDateRangeMultiSelect = (rangeIds: string[]) => {
+    setSelectedDateRanges(rangeIds);
+    if (rangeIds.length === 0) {
+      setSelectedDateRange(null);
+    } else if (!rangeIds.includes(selectedDateRange || '')) {
+      setSelectedDateRange(rangeIds[0]);
     }
-
-    // Get all the selected date ranges
-    const dateRangeObjects = activeDateRanges
-      .map(rangeId => projectData.dateRanges.find(range => range.id === rangeId))
-      .filter(Boolean);
-
-    if (dateRangeObjects.length === 0) {
-      return data;
-    }
-
-    return data.filter(row => {
-      // Check if the row matches ANY of the selected date ranges
-      return dateRangeObjects.some(dateRange => {
-        const startDate = new Date(dateRange.startDate);
-        const endDate = new Date(dateRange.endDate);
-
-        for (const [key, value] of Object.entries(row)) {
-          if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
-            const rowDate = new Date(value);
-            if (rowDate >= startDate && rowDate <= endDate) {
-              return true;
-            }
-          }
-        }
-        return false;
-      });
-    });
-  };
-
-  const handleChartSave = (chart: Chart) => {
-    const existingIndex = projectData.charts.findIndex(c => c.id === chart.id);
-    let updatedCharts;
-
-    if (existingIndex >= 0) {
-      updatedCharts = [...projectData.charts];
-      updatedCharts[existingIndex] = chart;
-    } else {
-      updatedCharts = [...projectData.charts, chart];
-    }
-
-    onProjectUpdate({
-      ...projectData,
-      charts: updatedCharts
-    });
-    setSelectedChart(null);
-  };
-
-  const handleChartDelete = (chartId: string) => {
-    if (confirm('Are you sure you want to delete this chart?')) {
-      onProjectUpdate({
-        ...projectData,
-        charts: projectData.charts.filter(c => c.id !== chartId)
-      });
-    }
-  };
-
-  const handleDashboardSave = (dashboard: Dashboard) => {
-    const existingIndex = projectData.dashboards.findIndex(d => d.id === dashboard.id);
-    let updatedDashboards;
-
-    if (existingIndex >= 0) {
-      updatedDashboards = [...projectData.dashboards];
-      updatedDashboards[existingIndex] = dashboard;
-    } else {
-      updatedDashboards = [...projectData.dashboards, dashboard];
-    }
-
-    onProjectUpdate({
-      ...projectData,
-      dashboards: updatedDashboards
-    });
-    setSelectedDashboard(null);
   };
 
   const generateChartData = (chart: Chart): ChartData | null => {
-    const config = chart.config as ChartConfiguration;
+    const config = chart.config;
     if (!config || typeof config !== 'object') {
       return generateSampleData(chart.type);
     }
@@ -899,7 +371,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           const groupedData: Record<string, number[]> = {};
           sourceData.forEach(row => {
             const xValue = String(row[config.xAxisField!] || 'Unknown');
-            const yValue = Number(row[config.yAxisField as string]) || 0;
+            const yField = Array.isArray(config.yAxisField) ? config.yAxisField[0] : config.yAxisField;
+            const yValue = Number(row[yField]) || 0;
 
             if (!groupedData[xValue]) groupedData[xValue] = [];
             groupedData[xValue].push(yValue);
@@ -930,7 +403,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           return {
             labels,
             datasets: [{
-              label: config.yAxisField as string,
+              label: Array.isArray(config.yAxisField) ? config.yAxisField[0] : config.yAxisField,
               data
             }]
           };
@@ -939,40 +412,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     } catch (error) {
       console.error('Error generating chart data:', error);
       return generateSampleData(config.templateId || chart.type);
-    }
-  };
-
-  // Chart card sizing for adaptive layout
-  const getOptimalCardWidth = (templateId: string) => {
-    const smallChartTypes = ['pie-chart', 'donut-chart'];
-    const isSmallChart = smallChartTypes.includes(templateId);
-    return isSmallChart ? '500px' : '900px'; // Smaller cards for pie charts, larger for bar/line charts
-  };
-
-  const getChartDimensions = (templateId: string) => {
-    // 16:9 aspect ratio optimized for laptop screens
-    const baseWidth = 800;
-    const baseHeight = 450; // 16:9 aspect ratio
-    const svgHeight = baseHeight;
-    const containerHeight = svgHeight + 40; // Reduced padding for tighter fit
-
-    switch (templateId) {
-      case 'simple-bar':
-      case 'multi-series-bar':
-      case 'stacked-bar':
-        return { width: baseWidth, height: containerHeight, svgHeight };
-      case 'simple-line':
-      case 'multi-line':
-        return { width: baseWidth, height: containerHeight, svgHeight };
-      case 'area-chart':
-        return { width: baseWidth, height: containerHeight, svgHeight };
-      case 'pie-chart':
-        // Square aspect ratio for pie charts
-        return { width: 500, height: 500 + 40, svgHeight: 500 };
-      case 'scatter-plot':
-        return { width: baseWidth, height: containerHeight, svgHeight };
-      default:
-        return { width: baseWidth, height: containerHeight, svgHeight };
     }
   };
 
@@ -1046,13 +485,122 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     }
   };
 
-  // Helper function to determine if chart type should use compact (horizontal) layout
-  const isCompactChart = (chartType: string, templateId?: string): boolean => {
-    const type = (templateId || chartType || '').toLowerCase();
-    return type.includes('pie') ||
-           type.includes('donut') ||
-           type.includes('gauge') ||
-           type.includes('circle');
+  const applyDateRangeFilter = (data: any[]) => {
+    const activeDateRanges = selectedDateRanges.length > 0 ? selectedDateRanges : (selectedDateRange ? [selectedDateRange] : []);
+
+    if (activeDateRanges.length === 0 || !projectData.dateRanges) {
+      return data;
+    }
+
+    const dateRangeObjects = activeDateRanges
+      .map(rangeId => projectData.dateRanges.find(range => range.id === rangeId))
+      .filter(Boolean);
+
+    if (dateRangeObjects.length === 0) {
+      return data;
+    }
+
+    return data.filter(row => {
+      return dateRangeObjects.some(dateRange => {
+        const startDate = new Date(dateRange.startDate);
+        const endDate = new Date(dateRange.endDate);
+
+        for (const [key, value] of Object.entries(row)) {
+          if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
+            const rowDate = new Date(value);
+            if (rowDate >= startDate && rowDate <= endDate) {
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+    });
+  };
+
+  const handleDataImport = (data: any[], columns: any[], fileName?: string) => {
+    const updatedData = {
+      ...projectData,
+      data,
+      columns
+    };
+    onProjectUpdate(updatedData);
+    setShowDataImport(false);
+  };
+
+  const handleChartSave = (chart: Chart) => {
+    const existingIndex = projectData.charts.findIndex(c => c.id === chart.id);
+    let updatedCharts;
+
+    if (existingIndex >= 0) {
+      updatedCharts = [...projectData.charts];
+      updatedCharts[existingIndex] = chart;
+    } else {
+      updatedCharts = [...projectData.charts, chart];
+    }
+
+    onProjectUpdate({
+      ...projectData,
+      charts: updatedCharts
+    });
+    setSelectedChart(null);
+  };
+
+  const handleChartDelete = (chartId: string) => {
+    if (confirm('Are you sure you want to delete this chart?')) {
+      onProjectUpdate({
+        ...projectData,
+        charts: projectData.charts.filter(c => c.id !== chartId)
+      });
+    }
+  };
+
+  const handleGenerateAnalysis = async (chart: Chart) => {
+    const chartData = generateChartData(chart);
+    if (!chartData || !settings?.apiKeys?.gemini) {
+      alert('Unable to generate analysis. Please ensure you have chart data and a valid Gemini API key configured in settings.');
+      return;
+    }
+
+    // Set generating state
+    setChartAnalyses(prev => ({
+      ...prev,
+      [chart.id]: {
+        content: prev[chart.id]?.content || '',
+        isGenerating: true,
+        error: undefined
+      }
+    }));
+
+    try {
+      const geminiClient = new GeminiClient(settings.apiKeys.gemini);
+      const analysis = await geminiClient.generateChartInsights(chartData.datasets[0]?.data || [], chart.config);
+
+      setChartAnalyses(prev => ({
+        ...prev,
+        [chart.id]: {
+          content: analysis,
+          isGenerating: false,
+          error: undefined
+        }
+      }));
+
+      // Open modal with analysis
+      setModalChart(chart);
+      setModalChartData(chartData);
+      setShowAnalysisModal(true);
+    } catch (error) {
+      console.error('Error generating analysis:', error);
+      setChartAnalyses(prev => ({
+        ...prev,
+        [chart.id]: {
+          content: prev[chart.id]?.content || '',
+          isGenerating: false,
+          error: error instanceof Error ? error.message : 'Failed to generate analysis'
+        }
+      }));
+      alert('Failed to generate analysis. Please check your API key and try again.');
+    }
   };
 
   const renderData = () => {
@@ -1314,13 +862,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
   const renderCharts = () => {
     return (
-      <div style={{ padding: '24px' }}>
+      <div style={{ padding: '12px' }}>
         <div style={{
           background: 'white',
           borderRadius: '12px',
           border: '1px solid #e5e7eb',
-          padding: '16px 24px',
-          marginBottom: '24px',
+          padding: '12px 16px',
+          marginBottom: '16px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -1338,7 +886,15 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               id: `chart-${Date.now()}`,
               name: 'New Chart',
               type: 'bar',
-              config: {},
+              config: {
+                title: 'New Chart',
+                colorScheme: 'blue',
+                showLegend: false,
+                showGrid: true,
+                animation: true,
+                legendVerticalPosition: 'top',
+                legendHorizontalPosition: 'center'
+              },
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             })}
@@ -1363,7 +919,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         </div>
 
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', marginLeft: '12px' }}>
             <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '600' }}>Your Charts</h2>
           </div>
 
@@ -1386,40 +942,34 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             </div>
           ) : (
             <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '24px',
-              width: '100%'
+              display: 'grid',
+              gap: '20px',
+              gridTemplateColumns: viewportWidth >= 880 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+              width: '100%',
+              gridAutoFlow: 'row dense'
             }}>
               {projectData.charts.map(chart => {
-                const config = chart.config as ChartConfiguration;
+                const config = chart.config;
                 const chartData = generateChartData(chart);
-                const dimensions = getChartDimensions(config.templateId || chart.type);
-                const analysisState = chartAnalyses[chart.id];
-                const hasExistingAnalysis = Boolean(analysisState?.content?.trim());
-                const analysisButtonLabel = analysisState?.isGenerating
-                  ? 'Generating...'
-                  : hasExistingAnalysis
-                    ? 'Regenerate'
-                    : 'Generate';
-
-                // Determine layout based on chart type
-                const useHorizontalLayout = isCompactChart(chart.type, config.templateId);
-
+                const chartConfig = getChartDisplayConfig(chart.type, config.templateId, viewportWidth);
+                const gridSpan = viewportWidth >= 880 ? 'span 2' : 'span 1';
 
                 return (
                   <div key={chart.id} style={{
                     background: '#ffffff',
                     borderRadius: '16px',
                     border: '2px solid #e2e8f0',
-                    overflow: 'visible',
+                    overflow: 'hidden',
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
-                    width: 'fit-content',
-                    maxWidth: getOptimalCardWidth(config.templateId || chart.type),
-                    minWidth: '450px',
-                    margin: '0 auto', // Center the card
+                    width: '100%',
+                    maxWidth: `${chartConfig.cardWidth}px`,
+                    height: `${chartConfig.cardMinHeight}px`,
                     transition: 'all 0.2s ease',
-                    position: 'relative'
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gridColumn: gridSpan,
+                    margin: '0 auto'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.08)';
@@ -1429,240 +979,148 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)';
                     e.currentTarget.style.borderColor = '#e2e8f0';
                   }}>
+                    {/* First Header Row: Title and Actions */}
                     <div style={{
-                      padding: '20px 24px',
-                      borderBottom: '2px solid #f1f5f9',
+                      padding: '10px 14px',
+                      borderBottom: '1px solid #f1f5f9',
                       background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                       display: 'flex',
-                      justifyContent: 'space-between',
                       alignItems: 'center',
-                      width: 'auto',
-                      boxSizing: 'border-box',
-                      borderTopLeftRadius: '14px',
-                      borderTopRightRadius: '14px'
+                      justifyContent: 'space-between',
+                      gap: '10px'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flex: 1 }}>
-                        {/* Title Section */}
-                        <div>
-                          <h4 style={{
-                            margin: 0,
-                            fontSize: '18px',
-                            fontWeight: '600',
-                            color: '#1e293b',
-                            letterSpacing: '-0.025em',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px'
-                          }}>
-                            <span style={{
-                              fontSize: '12px',
-                              color: '#6366f1',
-                              background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
-                              padding: '3px 8px',
-                              borderRadius: '12px',
-                              textTransform: 'uppercase',
-                              fontWeight: '700',
-                              border: '1px solid #c7d2fe',
-                              letterSpacing: '0.05em'
-                            }}>
-                              {chart.type.replace('-', ' ')}
-                            </span>
-                            {chart.name}
-                          </h4>
-                        </div>
-
-                        {/* Filters Section */}
-                        <div style={{
+                      {/* Title Section */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flex: 1,
+                        minWidth: 0
+                      }}>
+                        <h4 style={{
+                          margin: 0,
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          color: '#1e293b',
+                          letterSpacing: '-0.025em',
                           display: 'flex',
-                          gap: '12px',
                           alignItems: 'center',
-                          flexWrap: 'wrap'
+                          gap: '6px',
+                          minWidth: 0,
+                          overflow: 'hidden'
                         }}>
-                          {/* Compact Date Filter */}
-                          <div style={{
-                            background: 'linear-gradient(135deg, #fafbfc 0%, #f1f5f9 100%)',
-                            border: '2px solid #d1d5db',
-                            borderRadius: '8px',
-                            padding: '8px 12px',
-                            minWidth: '180px',
+                          <span style={{
+                            fontSize: '10px',
+                            color: '#6366f1',
+                            background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                            padding: '2px 6px',
+                            borderRadius: '6px',
+                            textTransform: 'uppercase',
+                            fontWeight: '700',
+                            border: '1px solid #c7d2fe',
+                            letterSpacing: '0.05em',
+                            flexShrink: 0
+                          }}>
+                            {chart.type.substring(0, 3).toUpperCase()}
+                          </span>
+                          <span style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {chart.name}
+                          </span>
+                        </h4>
+                      </div>
+
+                      {/* Actions Section */}
+                      <div style={{
+                        display: 'flex',
+                        gap: '6px',
+                        alignItems: 'center'
+                      }}>
+                        {/* Generate/Analysis Button */}
+                        <button
+                          onClick={() => {
+                            if (chartAnalyses[chart.id]?.content) {
+                              // Show existing analysis
+                              setModalChart(chart);
+                              setModalChartData(generateChartData(chart));
+                              setShowAnalysisModal(true);
+                            } else {
+                              // Generate new analysis
+                              handleGenerateAnalysis(chart);
+                            }
+                          }}
+                          style={{
+                            padding: '10px 18px',
+                            background: chartAnalyses[chart.id]?.content
+                              ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
+                              : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 10,
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            transition: 'all 0.2s ease',
+                            opacity: chartAnalyses[chart.id]?.isGenerating ? 0.7 : 1,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                            transition: 'all 0.2s ease'
-                          }}>
-                            <span style={{
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              color: '#374151'
-                            }}>📅 Date:</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
-                              <DateRangeFilter
-                                dateRanges={projectData.dateRanges || []}
-                                selectedRangeId={selectedDateRange}
-                                onRangeSelect={setSelectedDateRange}
-                                selectedRangeIds={selectedDateRanges}
-                                onDateRangeAdd={(newRange) => {
-                                  const updatedData = {
-                                    ...projectData,
-                                    dateRanges: [...(projectData.dateRanges || []), newRange]
-                                  };
-                                  onProjectUpdate(updatedData);
-                                }}
-                                onDateRangeUpdate={(updatedRange) => {
-                                  const updatedData = {
-                                    ...projectData,
-                                    dateRanges: (projectData.dateRanges || []).map(range =>
-                                      range.id === updatedRange.id ? updatedRange : range
-                                    )
-                                  };
-                                  onProjectUpdate(updatedData);
-                                }}
-                                onDateRangeDelete={(id) => {
-                                  const updatedData = {
-                                    ...projectData,
-                                    dateRanges: (projectData.dateRanges || []).filter(range => range.id !== id)
-                                  };
-                                  onProjectUpdate(updatedData);
-                                }}
-                                compact={true}
-                                onRangeMultiSelect={setSelectedDateRanges}
-                              />
-                            </div>
-                          </div>
+                            gap: '4px'
+                          }}
+                          disabled={chartAnalyses[chart.id]?.isGenerating}
+                        >
+                          {chartAnalyses[chart.id]?.isGenerating ? (
+                            <>
+                              <div style={{
+                                width: '12px',
+                                height: '12px',
+                                border: '2px solid transparent',
+                                borderTop: '2px solid white',
+                                borderRadius: '50%',
+                                animation: 'spin 1s linear infinite'
+                              }}></div>
+                              Generating...
+                            </>
+                          ) : chartAnalyses[chart.id]?.content ? (
+                            '📊 Analysis'
+                          ) : (
+                            '✨ Generate'
+                          )}
+                        </button>
 
-                          {/* Compact Chart Filters */}
-                          <div style={{
-                            background: 'linear-gradient(135deg, #fafbfc 0%, #f1f5f9 100%)',
-                            border: '2px solid #d1d5db',
-                            borderRadius: '8px',
-                            padding: '8px 12px',
-                            minWidth: '200px',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                            transition: 'all 0.2s ease'
-                          }}>
-                            <ChartSlicerControls
-                              chart={chart}
-                              projectData={projectData}
-                              onProjectDataChange={onProjectUpdate}
-                              compact={true}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        {(() => {
-                          const buttonState = getAnalysisButtonState(chart);
-
-                          return (
-                            <button
-                              onClick={() => {
-                                if (buttonState.type === 'generate') {
-                                  generateChartAnalysis(chart, chartData);
-                                } else if (buttonState.type === 'show') {
-                                  handleShowAnalysisModal(chart);
-                                }
-                              }}
-                              disabled={buttonState.disabled}
-                              style={{
-                                padding: '8px 16px',
-                                background: buttonState.type === 'generate'
-                                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                                  : buttonState.type === 'show'
-                                    ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
-                                    : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                cursor: buttonState.disabled ? 'not-allowed' : 'pointer',
-                                fontSize: '13px',
-                                fontWeight: '500',
-                                transition: 'all 0.2s ease',
-                                boxShadow: `0 2px 4px ${
-                                  buttonState.type === 'generate'
-                                    ? 'rgba(16, 185, 129, 0.2)'
-                                    : buttonState.type === 'show'
-                                      ? 'rgba(139, 92, 246, 0.2)'
-                                      : 'rgba(148, 163, 184, 0.2)'
-                                }`,
-                                opacity: buttonState.disabled ? 0.7 : 1
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!buttonState.disabled) {
-                                  if (buttonState.type === 'generate') {
-                                    e.currentTarget.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
-                                  } else if (buttonState.type === 'show') {
-                                    e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)';
-                                  }
-                                  e.currentTarget.style.transform = 'translateY(-1px)';
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!buttonState.disabled) {
-                                  if (buttonState.type === 'generate') {
-                                    e.currentTarget.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
-                                  } else if (buttonState.type === 'show') {
-                                    e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
-                                  }
-                                  e.currentTarget.style.transform = 'translateY(0)';
-                                }
-                              }}
-                            >
-                              {buttonState.label}
-                            </button>
-                          );
-                        })()}
-
+                        {/* Edit Button */}
                         <button
                           onClick={() => setSelectedChart(chart)}
                           style={{
-                            padding: '8px 16px',
+                            padding: '10px 18px',
                             background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                             color: 'white',
-                            border: '1px solid #2563eb',
-                            borderRadius: '8px',
+                            border: 'none',
+                            borderRadius: 10,
                             cursor: 'pointer',
-                            fontSize: '13px',
-                            fontWeight: '500',
-                            transition: 'all 0.2s ease',
-                            boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(59, 130, 246, 0.3)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.2)';
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            transition: 'all 0.2s ease'
                           }}
                         >
                           Edit
                         </button>
+
+                        {/* Delete Button */}
                         <button
                           onClick={() => handleChartDelete(chart.id)}
                           style={{
-                            padding: '8px 16px',
+                            padding: '10px 18px',
                             background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
                             color: 'white',
-                            border: '1px solid #dc2626',
-                            borderRadius: '8px',
+                            border: 'none',
+                            borderRadius: 10,
                             cursor: 'pointer',
-                            fontSize: '13px',
-                            fontWeight: '500',
-                            transition: 'all 0.2s ease',
-                            boxShadow: '0 2px 4px rgba(239, 68, 68, 0.2)'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(239, 68, 68, 0.3)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(239, 68, 68, 0.2)';
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            transition: 'all 0.2s ease'
                           }}
                         >
                           Delete
@@ -1670,10 +1128,82 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                       </div>
                     </div>
 
-
-                    {/* Chart Content - Properly wrapped with 16:9 aspect ratio */}
+                    {/* Second Header Row: Filters */}
                     <div style={{
-                      padding: '24px',
+                      padding: '8px 14px',
+                      borderBottom: '1px solid #f1f5f9',
+                      background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.8) 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      flexWrap: 'wrap'
+                    }}>
+                      {/* Date Filter */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        border: '1px solid #94a3ff',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, rgba(238, 242, 255, 0.85) 0%, rgba(224, 231, 255, 0.95) 100%)',
+                        padding: '6px 12px',
+                        boxShadow: 'inset 0 1px 2px rgba(99,102,241,0.12)'
+                      }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937' }}>📅 Date</span>
+                        <DateRangeFilter
+                          dateRanges={projectData.dateRanges || []}
+                          selectedRangeId={selectedDateRange}
+                          onRangeSelect={(rangeId) => {
+                            setSelectedDateRange(rangeId);
+                            setSelectedDateRanges(rangeId ? [rangeId] : []);
+                          }}
+                          selectedRangeIds={selectedDateRanges}
+                          onRangeMultiSelect={handleDateRangeMultiSelect}
+                          onDateRangeAdd={handleDateRangeAdd}
+                          onDateRangeUpdate={handleDateRangeUpdate}
+                          onDateRangeDelete={handleDateRangeDelete}
+                          onManage={() => setShowDateRangeManager(true)}
+                          compact
+                        />
+                      </div>
+
+                      {/* Normal Filters */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        border: '1px solid #94a3ff',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, rgba(238, 242, 255, 0.85) 0%, rgba(224, 231, 255, 0.95) 100%)',
+                        padding: '6px 12px',
+                        boxShadow: 'inset 0 1px 2px rgba(99,102,241,0.12)',
+                        flex: 1,
+                        minWidth: 0
+                      }}>
+                        <span style={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#1f2937',
+                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <span role="img" aria-label="filters">🔍</span> Filters
+                        </span>
+                        <ChartSlicerControls
+                          chart={chart}
+                          projectData={projectData}
+                          onProjectDataChange={onProjectUpdate}
+                          compact
+                          compactShowLabel={false}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Maximized Chart Content */}
+                    <div style={{
+                      padding: '6px',
                       background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
                       borderTop: '1px solid #e5e7eb',
                       display: 'flex',
@@ -1682,25 +1212,24 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                     }}>
                       <div style={{
                         width: '100%',
-                        maxWidth: '800px',
-                        aspectRatio: '16/9', // Fixed 16:9 aspect ratio container
+                        height: `${chartConfig.chartHeight}px`,
                         background: 'rgba(255, 255, 255, 0.9)',
-                        borderRadius: '12px',
+                        borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
                         border: '1px solid rgba(255, 255, 255, 0.2)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '16px'
+                        padding: '12px'
                       }}>
-                        {chartData ? (
-                          <ChartRenderer
-                            config={config}
-                            data={chartData}
-                            width={720} // Adjusted to fit within 16:9 container
-                            height={405} // Maintains 16:9 ratio (720 * 9/16)
-                            forceDisableAnimation={false}
-                          />
+                          {chartData ? (
+                            <ChartRenderer
+                              config={config}
+                              data={chartData}
+                              width={chartConfig.chartWidth}
+                              height={chartConfig.chartHeight}
+                              forceDisableAnimation
+                            />
                         ) : (
                           <div style={{
                             width: '100%',
@@ -1725,41 +1254,27 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             </div>
           )}
         </div>
-
       </div>
     );
   };
 
-  if (selectedChart) {
-    return (
-      <div style={{ padding: '24px' }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          border: '1px solid #e5e7eb',
-          overflow: 'hidden'
-        }}>
-          <ChartBuilder
-            chart={selectedChart}
-            projectData={projectData}
-            onSave={handleChartSave}
-            onCancel={() => setSelectedChart(null)}
-          />
-        </div>
+  const renderChartBuilder = () => (
+    <div style={{ padding: '24px' }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        border: '1px solid #e5e7eb',
+        overflow: 'hidden'
+      }}>
+        <ChartBuilder
+          chart={selectedChart}
+          projectData={projectData}
+          onSave={handleChartSave}
+          onCancel={() => setSelectedChart(null)}
+        />
       </div>
-    );
-  }
-
-  if (selectedDashboard) {
-    return (
-      <DashboardBuilder
-        dashboard={selectedDashboard}
-        projectData={projectData}
-        onSave={handleDashboardSave}
-        onCancel={() => setSelectedDashboard(null)}
-      />
-    );
-  }
+    </div>
+  );
 
   if (showDataImport) {
     return (
@@ -1809,18 +1324,88 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         </div>
       </div>
 
-      {activeTab === 'charts' && renderCharts()}
-      {activeTab === 'data' && renderData()}
+      {selectedChart ? renderChartBuilder() : (
+        <>
+          {activeTab === 'charts' && renderCharts()}
+          {activeTab === 'data' && renderData()}
+        </>
+      )}
 
-      {/* Chart Analysis Modal */}
+      {showDateRangeManager && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2100,
+            padding: '24px'
+          }}
+          onClick={() => setShowDateRangeManager(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(720px, 100%)',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              background: '#ffffff',
+              borderRadius: '16px',
+              boxShadow: '0 24px 48px rgba(15, 23, 42, 0.25)',
+              border: '1px solid #e2e8f0',
+              padding: '24px'
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#1f2937' }}>
+                Manage Date Filters
+              </h2>
+              <button
+                onClick={() => setShowDateRangeManager(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '18px',
+                  color: '#6b7280'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <DateRangeManager
+              dateRanges={projectData.dateRanges || []}
+              onDateRangeAdd={handleDateRangeAdd}
+              onDateRangeUpdate={handleDateRangeUpdate}
+              onDateRangeDelete={handleDateRangeDelete}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Analysis Modal */}
       {showAnalysisModal && modalChart && (
         <ChartAnalysisModal
           chart={modalChart}
           chartData={modalChartData}
           analysis={chartAnalyses[modalChart.id]?.content || ''}
           isOpen={showAnalysisModal}
-          onClose={handleCloseAnalysisModal}
-          onRegenerate={handleRegenerateModalAnalysis}
+          onClose={() => {
+            setShowAnalysisModal(false);
+            setModalChart(null);
+            setModalChartData(null);
+          }}
+          onRegenerate={() => handleGenerateAnalysis(modalChart)}
           isRegenerating={chartAnalyses[modalChart.id]?.isGenerating || false}
         />
       )}

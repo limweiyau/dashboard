@@ -12,6 +12,7 @@ interface ChartSlicerControlsProps {
   projectData: ProjectData;
   onProjectDataChange: (data: ProjectData) => void;
   compact?: boolean;
+  compactShowLabel?: boolean;
 }
 
 interface CompactFilterDropdownProps {
@@ -235,7 +236,8 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
   chart,
   projectData,
   onProjectDataChange,
-  compact = false
+  compact = false,
+  compactShowLabel = true
 }) => {
   const [showAddSlicer, setShowAddSlicer] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState('');
@@ -626,22 +628,22 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
   if (compact) {
     return (
       <>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
+          {compactShowLabel && (
             <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
               🔍 Filters ({appliedSlicers.length})
             </span>
+          )}
 
-            {/* Show dropdown for each active filter */}
-            {appliedSlicers.map(slicer => (
-              <CompactFilterDropdown
-                key={slicer.id}
-                slicer={slicer}
-                onValueChange={(values) => handleSlicerValueChange(slicer.id, values)}
-                onRemove={() => handleToggleSlicer(slicer.id, false)}
-              />
-            ))}
-          </div>
+          {/* Show dropdown for each active filter */}
+          {appliedSlicers.map(slicer => (
+            <CompactFilterDropdown
+              key={slicer.id}
+              slicer={slicer}
+              onValueChange={(values) => handleSlicerValueChange(slicer.id, values)}
+              onRemove={() => handleToggleSlicer(slicer.id, false)}
+            />
+          ))}
 
           <button
             onClick={() => setShowAddSlicer(!showAddSlicer)}

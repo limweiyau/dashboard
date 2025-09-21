@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import { ChartConfiguration, ChartData } from '../../types/charts';
 import { COLOR_SCHEMES } from './chartTemplates';
@@ -37,17 +37,22 @@ function formatNumberValue(value: number, format: ChartConfiguration['numberForm
     }
   }
 
-  // Handle decimals
-  if (format.decimals !== undefined) {
-    formattedValue = Number(formattedValue.toFixed(format.decimals));
-  }
+  // Handle decimals and thousands separators together
+  let result: string;
 
-  // Convert to string for formatting
-  let result = String(formattedValue);
-
-  // Handle thousands separators
   if (format.thousands) {
-    result = formattedValue.toLocaleString();
+    // Use toLocaleString with proper decimal places option
+    const decimals = format.decimals !== undefined ? format.decimals : 2;
+    result = formattedValue.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+  } else {
+    // Handle decimals only
+    if (format.decimals !== undefined) {
+      formattedValue = Number(formattedValue.toFixed(format.decimals));
+    }
+    result = String(formattedValue);
   }
 
   // Handle negative numbers
@@ -210,6 +215,7 @@ interface ChartRendererProps {
   width?: number;
   height?: number;
   forceDisableAnimation?: boolean; // Optional prop to disable animations contextually
+  scaleFactor?: number; // New prop for proportional scaling of all elements
 }
 
 const ChartRenderer: React.FC<ChartRendererProps> = ({
@@ -217,27 +223,24 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
   data,
   width = 600,
   height = 400,
-  forceDisableAnimation = false
+  forceDisableAnimation = false,
+  scaleFactor = 1.0
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const svgHeight = height - 50; // SVG height is 50px less than container height
-  const [dimensions, setDimensions] = React.useState({ width, height: svgHeight });
-
-  // Use explicit dimensions instead of container resize
-  useEffect(() => {
-    setDimensions({ width, height: svgHeight });
-  }, [width, height, svgHeight]);
+  const svgHeight = Math.max(height - 50, 0); // Reserve space for title/actions without forcing re-renders
 
   useEffect(() => {
     if (!svgRef.current || !data || !data.labels.length) return;
+
+    // Simplified animation logic - trust the forceDisableAnimation flag from ChartBuilder
+    const shouldAnimate = !forceDisableAnimation && config.animation;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
     // Use dynamic dimensions
-    const actualWidth = dimensions.width;
-    const actualHeight = dimensions.height;
+    const actualWidth = width;
+    const actualHeight = svgHeight;
 
     // Adjust margins based on chart size - scale for different preview sizes
     const isSmallChart = actualWidth <= 350 || actualHeight <= 200;
@@ -259,11 +262,16 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
     } else {
       const horizontalPadding = baseMargin + (config.paddingHorizontal || (isSmallChart ? 5 : 20));
       const verticalPadding = (isSmallChart ? 20 : 35) + (config.paddingVertical || (isSmallChart ? 5 : 10));
+
+      // Make margins symmetric for proper centering, with extra space distributed evenly
+      const horizontalExtra = Math.floor(extraSpace / 2);
+      const verticalExtra = extraSpace;
+
       margin = {
         top: verticalPadding,
-        right: horizontalPadding,
-        bottom: verticalPadding + extraSpace, // Reserve room for axis labels when needed
-        left: horizontalPadding + extraSpace
+        right: horizontalPadding + horizontalExtra,
+        bottom: verticalPadding + verticalExtra, // Reserve room for axis labels when needed
+        left: horizontalPadding + horizontalExtra
       };
     }
     const chartWidth = actualWidth - margin.left - margin.right;
@@ -306,33 +314,33 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
     switch (config.templateId) {
       case 'simple-bar':
       case 'multi-series-bar':
-        renderBarChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, shouldUsePerCategoryColors, forceDisableAnimation);
+        renderBarChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, shouldUsePerCategoryColors, !shouldAnimate, scaleFactor);
         break;
       case 'stacked-bar':
-        renderStackedBarChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, forceDisableAnimation);
+        renderStackedBarChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, !shouldAnimate, scaleFactor);
         break;
       case 'simple-line':
       case 'multi-line':
-        renderLineChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, forceDisableAnimation);
+        renderLineChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, !shouldAnimate, scaleFactor);
         break;
       case 'area-chart':
-        renderAreaChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, forceDisableAnimation);
+        renderAreaChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, !shouldAnimate, scaleFactor);
         break;
       case 'pie-chart':
-        renderPieChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, forceDisableAnimation);
+        renderPieChart(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, !shouldAnimate, scaleFactor);
         break;
       case 'scatter-plot':
-        renderScatterPlot(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, forceDisableAnimation);
+        renderScatterPlot(g, data, chartWidth, chartHeight, colors, config, tooltipDiv, !shouldAnimate, scaleFactor);
         break;
     }
 
     if (config.showLegend || data.datasets.length > 1) {
       const legendVertical = config.legendVerticalPosition || 'top';
       const legendHorizontal = config.legendHorizontalPosition || config.legendPosition || 'right';
-      renderLegend(svg, data, colors, actualWidth, actualHeight, legendVertical, legendHorizontal, config, shouldUsePerCategoryColors);
+      renderLegend(svg, data, colors, actualWidth, actualHeight, legendVertical, legendHorizontal, config, shouldUsePerCategoryColors, scaleFactor);
     }
 
-  }, [config, data, dimensions, forceDisableAnimation]);
+  }, [config, data, width, svgHeight, forceDisableAnimation, scaleFactor]);
 
   // Determine title positioning
   const titleVertical = config.titleVerticalPosition || 'top';
@@ -341,8 +349,9 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
   const renderTitle = () => {
     if (!config.title) return null;
 
-    const isSmallChart = dimensions.width <= 350 || dimensions.height <= 200;
-    const titleFontSize = config.titleFontSize || (isSmallChart ? 12 : 18);
+    const isSmallChart = width <= 350 || svgHeight <= 200;
+    const baseTitleFontSize = config.titleFontSize || (isSmallChart ? 12 : 18);
+    const titleFontSize = Math.round(baseTitleFontSize * scaleFactor);
     const titleMargin = isSmallChart ? '4px 0 8px 0' : '8px 0 6px 0';
     const titleHeight = isSmallChart ? '20px' : '30px';
 
@@ -377,12 +386,11 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
 
   return (
     <div
-      ref={containerRef}
       className="chart-container"
       style={{
         background: 'rgba(255, 255, 255, 0.95)',
         borderRadius: '8px',
-        padding: dimensions.width <= 350 || dimensions.height <= 200 ? '6px' : '12px',
+        padding: width <= 350 || svgHeight <= 200 ? '6px' : '12px',
         boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
         border: '2px solid #8b5cf6',
         transition: 'all 0.3s ease',
@@ -392,7 +400,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
         maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        position: 'relative'
+        position: 'relative',
+        margin: '0 auto'
       }}>
       {titleVertical === 'top' && renderTitle()}
       <svg
@@ -413,10 +422,13 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
 };
 
 // Helper function to scale font sizes for different chart sizes
-const getScaledFontSize = (configSize: number | undefined, defaultSize: number, chartWidth: number): number => {
+const getScaledFontSize = (configSize: number | undefined, defaultSize: number, chartWidth: number, globalScaleFactor: number = 1.0): number => {
   const isPreviewChart = chartWidth <= 450; // Updated threshold for 650px wide charts
-  const scaleFactor = isPreviewChart ? 0.85 : 1; // 15% smaller for previews (less aggressive)
-  return Math.round((configSize || defaultSize) * scaleFactor);
+  const previewScale = isPreviewChart ? 0.85 : 1; // 15% smaller for previews (less aggressive)
+
+  // Apply both preview scaling and global proportional scaling
+  const combinedScale = previewScale * globalScaleFactor;
+  return Math.round((configSize || defaultSize) * combinedScale);
 };
 
 function renderBarChart(
@@ -428,7 +440,8 @@ function renderBarChart(
   config: ChartConfiguration,
   tooltip: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
   shouldUsePerCategoryColors: boolean,
-  forceDisableAnimation: boolean
+  forceDisableAnimation: boolean,
+  scaleFactor: number = 1.0
 ) {
 
   // Add gradients and glow effects for prettier bars
@@ -555,7 +568,7 @@ function renderBarChart(
     g.append('text')
       .attr('transform', `translate(${width / 2 + (config.xAxisLabelOffsetX || 0)}, ${height + 35 + (config.xAxisLabelOffsetY || 0)})`)
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.xAxisLabel || config.xAxisField || 'X-Axis');
@@ -568,7 +581,7 @@ function renderBarChart(
       .attr('y', -40) // Fixed positioning instead of referencing undefined margin
       .attr('x', 0 - (height / 2))
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.yAxisLabel || yAxisLabel || 'Y-Axis');
@@ -707,7 +720,7 @@ function renderBarChart(
               return 'middle'; // Center-align for all other positions
           }
         })
-        .style('font-size', `${config.dataLabelsFontSize || 11}px`)
+        .style('font-size', `${Math.round((config.dataLabelsFontSize || 11) * scaleFactor)}px`)
         .style('font-weight', '500')
         .style('fill', config.dataLabelsColor || '#374151')
         .style('opacity', (config.animation && !forceDisableAnimation) ? 0 : 1)
@@ -737,7 +750,8 @@ function renderStackedBarChart(
   colors: string[],
   config: ChartConfiguration,
   tooltip: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
-  forceDisableAnimation: boolean
+  forceDisableAnimation: boolean,
+  scaleFactor: number = 1.0
 ) {
   // Add gradients and glow effects for prettier bars
   const defs = g.append('defs');
@@ -885,7 +899,7 @@ function renderStackedBarChart(
     g.append('text')
       .attr('transform', `translate(${width / 2 + (config.xAxisLabelOffsetX || 0)}, ${height + 35 + (config.xAxisLabelOffsetY || 0)})`)
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.xAxisLabel || config.xAxisField || 'X-Axis');
@@ -898,7 +912,7 @@ function renderStackedBarChart(
       .attr('y', -40)
       .attr('x', 0 - (height / 2))
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.yAxisLabel || yAxisLabel || 'Y-Axis');
@@ -985,7 +999,7 @@ function renderStackedBarChart(
               }
             })
             .attr('text-anchor', 'middle')
-            .style('font-size', `${getScaledFontSize(config.dataLabelsFontSize, 11, width)}px`)
+            .style('font-size', `${getScaledFontSize(config.dataLabelsFontSize, 11, width, scaleFactor)}px`)
             .style('font-weight', '500')
             .style('fill', config.dataLabelsColor || '#374151')
             .style('opacity', (config.animation && !forceDisableAnimation) ? 0 : 1)
@@ -1013,7 +1027,8 @@ function renderLineChart(
   colors: string[],
   config: ChartConfiguration,
   tooltip: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
-  forceDisableAnimation: boolean
+  forceDisableAnimation: boolean,
+  scaleFactor: number = 1.0
 ) {
   const xScale = d3.scalePoint()
     .domain(data.labels)
@@ -1050,7 +1065,7 @@ function renderLineChart(
     g.append('text')
       .attr('transform', `translate(${width / 2 + (config.xAxisLabelOffsetX || 0)}, ${height + 35 + (config.xAxisLabelOffsetY || 0)})`)
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.xAxisField);
@@ -1063,7 +1078,7 @@ function renderLineChart(
       .attr('y', -40)
       .attr('x', 0 - (height / 2))
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.yAxisLabel || yAxisLabel);
@@ -1202,7 +1217,7 @@ function renderLineChart(
               return 'middle';
           }
         })
-        .style('font-size', `${config.dataLabelsFontSize || 11}px`)
+        .style('font-size', `${Math.round((config.dataLabelsFontSize || 11) * scaleFactor)}px`)
         .style('font-weight', '500')
         .style('fill', config.dataLabelsColor || '#374151')
         .style('opacity', (config.animation && !forceDisableAnimation) ? 0 : 1)
@@ -1261,7 +1276,8 @@ function renderAreaChart(
   colors: string[],
   config: ChartConfiguration,
   tooltip: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
-  forceDisableAnimation: boolean
+  forceDisableAnimation: boolean,
+  scaleFactor: number = 1.0
 ) {
   // Determine if this is a single-dataset chart that should use per-category coloring
   const isSingleDatasetChart = (config.templateId === 'area-chart') && data.datasets.length === 1;
@@ -1301,7 +1317,7 @@ function renderAreaChart(
     g.append('text')
       .attr('transform', `translate(${width / 2 + (config.xAxisLabelOffsetX || 0)}, ${height + 35 + (config.xAxisLabelOffsetY || 0)})`)
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.xAxisField);
@@ -1314,7 +1330,7 @@ function renderAreaChart(
       .attr('y', -40)
       .attr('x', 0 - (height / 2))
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.yAxisLabel || yAxisLabel);
@@ -1376,7 +1392,7 @@ function renderAreaChart(
           }
         })
         .attr('text-anchor', 'middle')
-        .style('font-size', `${config.dataLabelsFontSize || 11}px`)
+        .style('font-size', `${Math.round((config.dataLabelsFontSize || 11) * scaleFactor)}px`)
         .style('font-weight', '500')
         .style('fill', config.dataLabelsColor || '#374151')
         .style('opacity', (config.animation && !forceDisableAnimation) ? 0 : 1)
@@ -1402,11 +1418,12 @@ function renderPieChart(
   colors: string[],
   config: ChartConfiguration,
   tooltip: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
-  forceDisableAnimation: boolean
+  forceDisableAnimation: boolean,
+  scaleFactor: number = 1.0
 ) {
   // Increase pie chart slice size and center it properly
   const minDimension = Math.min(width, height);
-  const radius = Math.max(20, minDimension * 0.35); // Increased from 0.28 to 0.35
+  const radius = Math.max(20, minDimension * 0.4025); // Increased by 15% (0.35 * 1.15)
   const pieGroup = g.append('g')
     .attr('transform', `translate(${width / 2},${height / 2})`); // Centered without offset
 
@@ -1525,7 +1542,7 @@ function renderPieChart(
     });
 
   // Add animation for pie chart or set path immediately
-  if (config.animation) {
+  if (config.animation && !forceDisableAnimation) {
     paths
       .attr('d', d => {
         const arcCopy = d3.arc<d3.PieArcDatum<number>>()
@@ -1632,7 +1649,7 @@ function renderPieChart(
         const textElement = pieGroup.append('text')
           .attr('transform', `translate(${pos.x}, ${pos.y})`)
           .attr('text-anchor', 'middle')
-          .style('font-size', '11px')
+          .style('font-size', `${Math.round((config.dataLabelsFontSize || 11) * scaleFactor)}px`)
           .style('font-weight', '500')
           .style('fill', '#374151')
           .style('opacity', (config.animation && !forceDisableAnimation) ? 0 : 1);
@@ -1753,7 +1770,7 @@ function renderPieChart(
         const textElement = pieGroup.append('text')
           .attr('transform', `translate(${adjustedPosition.x}, ${adjustedPosition.y})`)
           .attr('text-anchor', 'middle')
-          .style('font-size', '11px')
+          .style('font-size', `${Math.round((config.dataLabelsFontSize || 11) * scaleFactor)}px`)
           .style('font-weight', '500')
           .style('fill', '#1f2937')
           .style('opacity', (config.animation && !forceDisableAnimation) ? 0 : 1);
@@ -1803,7 +1820,8 @@ function renderScatterPlot(
   colors: string[],
   config: ChartConfiguration,
   tooltip: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
-  forceDisableAnimation: boolean
+  forceDisableAnimation: boolean,
+  scaleFactor: number = 1.0
 ) {
   // For scatter plots, data contains {x, y} objects, so we need different scaling
   const allDataPoints = data.datasets.flatMap(d => d.data);
@@ -1909,7 +1927,7 @@ function renderScatterPlot(
     g.append('text')
       .attr('transform', `translate(${width / 2 + (config.xAxisLabelOffsetX || 0)}, ${height + 35 + (config.xAxisLabelOffsetY || 0)})`)
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.xAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.xAxisField);
@@ -1922,7 +1940,7 @@ function renderScatterPlot(
       .attr('y', -40)
       .attr('x', 0 - (height / 2))
       .style('text-anchor', 'middle')
-      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width)}px`)
+      .style('font-size', `${getScaledFontSize(config.yAxisLabelFontSize, 12, width, scaleFactor)}px`)
       .style('font-weight', '500')
       .style('fill', '#64748b')
       .text(config.yAxisLabel || yAxisLabel);
@@ -2009,7 +2027,7 @@ function renderScatterPlot(
           }
         })
         .attr('text-anchor', 'middle')
-        .style('font-size', `${config.dataLabelsFontSize || 11}px`)
+        .style('font-size', `${Math.round((config.dataLabelsFontSize || 11) * scaleFactor)}px`)
         .style('font-weight', '500')
         .style('fill', config.dataLabelsColor || '#374151')
         .style('opacity', (config.animation && !forceDisableAnimation) ? 0 : 1)
@@ -2060,36 +2078,80 @@ function renderLegend(
   verticalPosition: string = 'top',
   horizontalPosition: string = 'right',
   config: ChartConfiguration,
-  usePerCategoryColors: boolean = false
+  usePerCategoryColors: boolean = false,
+  scaleFactor: number = 1.0
 ) {
   const customPosition = config.legendCustomPosition;
   const datasets = data.datasets;
   let legendTransform: string;
-  let itemSpacing = 20;
   let horizontal = false;
+
+  const iconSize = Math.max(12 * scaleFactor, 10);
+  const iconGap = 8;
+  const itemGap = 28;
+  const baseFontSize = getScaledFontSize(config.legendFontSize, 11, width, scaleFactor);
+  const lineHeight = baseFontSize + 12;
 
   // Determine what to show in legend based on user's mapping choice and chart logic
   const showCategories = config.legendMapping === 'categories' ||
     (!config.legendMapping && usePerCategoryColors);
 
-  let legendItems;
+  type LegendEntry = { label: string; color: string; textWidth: number };
+  let legendItems: LegendEntry[];
   if (showCategories) {
     // Data Categories: show category labels with corresponding colors
-    legendItems = data.labels.map((label, i) => ({ label, color: colors[i % colors.length] }));
+    legendItems = data.labels.map((label, i) => ({ label, color: colors[i % colors.length], textWidth: 0 }));
   } else {
     // Data Series: show dataset labels with corresponding colors
     legendItems = datasets.map((dataset, i) => ({
       label: dataset.label,
-      color: colors[i % colors.length]
+      color: colors[i % colors.length],
+      textWidth: 0
     }));
   }
 
-  // Calculate legend dimensions
-  const legendItemWidth = 80;
-  const legendHeight = datasets.length * 20;
+  // Measure text widths for accurate spacing
+  const textWidthCache = new Map<string, number>();
+  let tempSvg: d3.Selection<SVGSVGElement, unknown, HTMLElement, any> | null = null;
+  let tempText: d3.Selection<SVGTextElement, unknown, SVGSVGElement, any> | null = null;
 
-  // Declare itemWidths at function level to avoid scope issues
-  let itemWidths: number[] = [];
+  if (legendItems.length > 0) {
+    tempSvg = d3.select('body')
+      .append('svg')
+      .style('position', 'absolute')
+      .style('visibility', 'hidden')
+      .style('top', '-1000px');
+
+    tempText = tempSvg.append('text')
+      .style('font-size', `${baseFontSize}px`)
+      .style('font-family', 'inherit');
+  }
+
+  const measureTextWidth = (value: string): number => {
+    if (textWidthCache.has(value)) {
+      return textWidthCache.get(value)!;
+    }
+
+    if (!tempText) {
+      const approximate = value.length * (baseFontSize * 0.55);
+      textWidthCache.set(value, approximate);
+      return approximate;
+    }
+
+    tempText.text(value);
+    const bbox = tempText.node()?.getBBox();
+    const widthValue = bbox ? bbox.width : value.length * (baseFontSize * 0.55);
+    textWidthCache.set(value, widthValue);
+    return widthValue;
+  };
+
+  legendItems = legendItems.map(item => ({
+    ...item,
+    textWidth: measureTextWidth(item.label || '')
+  }));
+
+  let legendHeight = Math.max(lineHeight, legendItems.length * lineHeight);
+  let legendRows: { items: LegendEntry[]; width: number }[] = [];
 
   if (customPosition) {
     // Use custom position and rotation
@@ -2102,58 +2164,70 @@ function renderLegend(
     // Set horizontal layout for top/bottom positions when centered
     horizontal = (verticalPosition === 'top' || verticalPosition === 'bottom') && horizontalPosition === 'center';
 
-    // For horizontal centered legends, calculate total content width first
-    let totalLegendWidth = 0;
-    if (horizontal && horizontalPosition === 'center') {
-      // Calculate actual content width for horizontal legends
-      const fontSize = getScaledFontSize(config.legendFontSize, 11, width);
-      const tempSvg = d3.select('body').append('svg').style('position', 'absolute').style('visibility', 'hidden');
-      const tempText = tempSvg.append('text').style('font-size', `${fontSize}px`);
+    if (horizontal) {
+      const maxRowWidth = Math.max(160, Math.min(width - 80, 540 * scaleFactor));
+      let currentRow: LegendEntry[] = [];
+      let currentWidth = 0;
+      legendItems.forEach((item) => {
+        const contentWidth = iconSize + iconGap + item.textWidth;
+        const projectedWidth = currentRow.length === 0
+          ? contentWidth
+          : currentWidth + itemGap + contentWidth;
 
-      itemWidths = legendItems.map(item => {
-        tempText.text(item.label);
-        const textWidth = tempText.node()?.getBBox().width || 0;
-        return 12 + 4 + textWidth + 20; // icon + gap + text + padding
+        if (currentRow.length > 0 && projectedWidth > maxRowWidth) {
+          legendRows.push({ items: currentRow, width: currentWidth });
+          currentRow = [];
+          currentWidth = 0;
+        }
+
+        if (currentRow.length > 0) {
+          currentWidth += itemGap;
+        }
+        currentWidth += contentWidth;
+        currentRow.push(item);
       });
 
-      totalLegendWidth = itemWidths.reduce((sum, w) => sum + w, 0);
-      tempSvg.remove();
+      if (currentRow.length > 0) {
+        legendRows.push({ items: currentRow, width: currentWidth });
+      }
+
+      if (legendRows.length === 0) {
+        legendRows = [{ items: legendItems, width: legendItems.reduce((sum, entry, idx) =>
+          sum + iconSize + iconGap + entry.textWidth + (idx > 0 ? itemGap : 0), 0) }];
+      }
+
+      legendHeight = legendRows.length * lineHeight;
+    } else {
+      legendHeight = Math.max(lineHeight, legendItems.length * lineHeight);
     }
 
-    // Determine horizontal position
+    const anchorPadding = Math.max(20, Math.min(30, width * 0.03));
     switch (horizontalPosition) {
       case 'left':
-        xPos = 10;
+        xPos = anchorPadding;
         break;
       case 'center':
-        if (horizontal) {
-          // For horizontal legends, position at chart center - the items will be centered relative to this point
-          xPos = width / 2;
-        } else {
-          xPos = width / 2;
-        }
+        xPos = width / 2;
         break;
       case 'right':
       default:
-        xPos = width - legendItemWidth - 10;
+        xPos = width - anchorPadding;
         break;
     }
 
-    // Determine vertical position
     switch (verticalPosition) {
       case 'top':
-        yPos = 20;
+        yPos = anchorPadding;
         break;
       case 'center':
         yPos = height / 2 - legendHeight / 2;
         break;
       case 'bottom':
       default:
-        yPos = height - legendHeight - 40; // Better spacing for bottom positioning
+        yPos = height - legendHeight - anchorPadding;
         break;
     }
 
-    // Apply positioning offsets
     xPos += config.legendOffsetX || 0;
     yPos += config.legendOffsetY || 0;
 
@@ -2165,78 +2239,93 @@ function renderLegend(
     .style('font-size', '12px');
 
   if (horizontal) {
-    // For horizontal layout, calculate actual text widths and position items accordingly
-    const fontSize = getScaledFontSize(config.legendFontSize, 11, width);
+    const rowsToRender = legendRows.length > 0 ? legendRows : [{
+      items: legendItems,
+      width: legendItems.reduce((sum, entry, idx) => sum + iconSize + iconGap + entry.textWidth + (idx > 0 ? itemGap : 0), 0)
+    }];
 
-    // Use pre-calculated itemWidths if available, otherwise calculate now
-    let finalItemWidths: number[] = [];
-    if (horizontal && horizontalPosition === 'center' && itemWidths.length > 0) {
-      finalItemWidths = itemWidths;
-    } else {
-      const tempText = legend.append('text')
-        .style('font-size', `${fontSize}px`)
-        .style('opacity', 0);
+    let yCursor = 0;
+    rowsToRender.forEach(row => {
+      let rowStartX;
+      switch (horizontalPosition) {
+        case 'left':
+          rowStartX = 0;
+          break;
+        case 'right':
+          rowStartX = -row.width;
+          break;
+        default:
+          rowStartX = -row.width / 2;
+          break;
+      }
 
-      finalItemWidths = legendItems.map((item: any) => {
-        tempText.text(item.label);
-        const textWidth = tempText.node()?.getBBox().width || 0;
-        return 12 + 4 + textWidth + 20; // icon + gap + text + padding
+      let xCursor = rowStartX;
+      row.items.forEach((item, index) => {
+        const legendItem = legend.append('g')
+          .attr('transform', `translate(${xCursor}, ${yCursor})`);
+
+        legendItem.append('rect')
+          .attr('width', iconSize)
+          .attr('height', iconSize)
+          .attr('rx', 3)
+          .style('fill', item.color)
+          .style('opacity', 0.9);
+
+        legendItem.append('text')
+          .attr('x', iconSize + iconGap)
+          .attr('y', iconSize - 2)
+          .style('font-size', `${baseFontSize}px`)
+          .style('fill', '#374151')
+          .style('text-anchor', 'start')
+          .text(item.label || '');
+
+        xCursor += iconSize + iconGap + item.textWidth + itemGap;
+        if (index === row.items.length - 1) {
+          xCursor -= itemGap; // remove trailing gap for final item
+        }
       });
 
-      tempText.remove(); // Clean up temporary text element
-    }
-
-    // Calculate total width and spacing with proper centering
-    const totalItemsWidth = finalItemWidths.reduce((sum: number, width: number) => sum + width, 0);
-    const padding = 20; // Space between items
-    const totalContentWidth = totalItemsWidth + (legendItems.length - 1) * padding;
-
-    // Position each item starting from the left edge of the centered group
-    // Calculate starting position to center the entire legend content
-    let currentX = -totalContentWidth / 2;
-
-    legendItems.forEach((item: any, i: number) => {
-      const legendItem = legend.append('g')
-        .attr('transform', `translate(${currentX}, 0)`);
-
-      legendItem.append('rect')
-        .attr('width', 12)
-        .attr('height', 12)
-        .attr('rx', 2)
-        .style('fill', item.color)
-        .style('opacity', 0.9);
-
-      legendItem.append('text')
-        .attr('x', 16)
-        .attr('y', 9)
-        .style('font-size', `${fontSize}px`)
-        .style('fill', '#374151')
-        .style('text-anchor', 'start')
-        .text(item.label);
-
-      currentX += finalItemWidths[i] + padding;
+      yCursor += lineHeight;
     });
   } else {
     // For vertical layout, use regular spacing
-    legendItems.forEach((item: any, i: number) => {
+    legendItems.forEach((item, i) => {
+      const rowWidth = iconSize + iconGap + item.textWidth;
+      let xOffset: number;
+      switch (horizontalPosition) {
+        case 'center':
+          xOffset = -rowWidth / 2;
+          break;
+        case 'right':
+          xOffset = -rowWidth;
+          break;
+        default:
+          xOffset = 0;
+          break;
+      }
+
       const legendItem = legend.append('g')
-        .attr('transform', `translate(0, ${i * 20})`);
+        .attr('transform', `translate(${xOffset}, ${i * lineHeight})`);
 
       legendItem.append('rect')
-        .attr('width', 12)
-        .attr('height', 12)
-        .attr('rx', 2)
+        .attr('width', iconSize)
+        .attr('height', iconSize)
+        .attr('rx', 3)
         .style('fill', item.color)
         .style('opacity', 0.9);
 
       legendItem.append('text')
-        .attr('x', 16)
-        .attr('y', 9)
-        .style('font-size', `${getScaledFontSize(config.legendFontSize, 11, width)}px`)
+        .attr('x', iconSize + iconGap)
+        .attr('y', iconSize - 2)
+        .style('font-size', `${baseFontSize}px`)
         .style('fill', '#374151')
         .style('text-anchor', 'start')
-        .text(item.label);
+        .text(item.label || '');
     });
+  }
+
+  if (tempSvg) {
+    tempSvg.remove();
   }
 }
 

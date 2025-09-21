@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { Chart, ProjectData, ColumnInfo } from '../../types';
 import { ChartConfiguration, ChartData, ChartTemplate } from '../../types/charts';
@@ -47,19 +47,60 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const [selectedTableId, setSelectedTableId] = useState<string>('main');
   const [isDataSelection, setIsDataSelection] = useState(false);
   const [isLegendMappingChange, setIsLegendMappingChange] = useState(false);
+  const [isChartTypeChange, setIsChartTypeChange] = useState(false);
+  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const legendMappingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper function to manage animation state
+  const triggerAnimation = (type: 'chartType' | 'legendMapping', duration = 800) => {
+    if (type === 'chartType') {
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
+      setIsChartTypeChange(true);
+      animationTimeoutRef.current = setTimeout(() => {
+        setIsChartTypeChange(false);
+        animationTimeoutRef.current = null;
+      }, duration);
+    } else if (type === 'legendMapping') {
+      if (legendMappingTimeoutRef.current) {
+        clearTimeout(legendMappingTimeoutRef.current);
+      }
+      setIsLegendMappingChange(true);
+      legendMappingTimeoutRef.current = setTimeout(() => {
+        setIsLegendMappingChange(false);
+        legendMappingTimeoutRef.current = null;
+      }, duration);
+    }
+  };
+
+  // Cleanup animation timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
+      if (legendMappingTimeoutRef.current) {
+        clearTimeout(legendMappingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Responsive chart dimensions based on window size
+  const [chartDimensions, setChartDimensions] = useState(() => {
+    const containerWidth = Math.min(window.innerWidth * 0.6 - 40, window.innerWidth - 200);
+    const containerHeight = containerWidth * (9/16); // 16:9 aspect ratio
+    return {
+      containerWidth,
+      containerHeight,
+      previewWidth: Math.floor(containerWidth),
+      previewHeight: Math.floor(containerHeight)
+    };
+  });
 
   // Layout management for adaptive UI
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [isLayoutTransitioning, setIsLayoutTransitioning] = useState(false);
-
-  // Collapsible sections state for vertical layout
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
-    data: false,
-    layout: true,
-    axes: true,
-    colors: true,
-    style: true
-  });
 
   // Get current table data and columns based on selection
   const getCurrentTableData = () => {
@@ -86,7 +127,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
 
   const currentTableData = getCurrentTableData();
   const numericColumns = currentTableData.columns.filter(col => col.type === 'number');
-  const categoricalColumns = currentTableData.columns.filter(col => col.type === 'string');
+  const categoricalColumns = currentTableData.columns.filter(col => col.type === 'string' || col.type === 'date');
   const allColumns = currentTableData.columns;
 
   // Helper function to generate columns from data if not provided
@@ -96,7 +137,20 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     const firstRow = data[0];
     return Object.keys(firstRow).map(key => {
       const sampleValue = firstRow[key];
-      const type = typeof sampleValue === 'number' ? 'number' : 'string';
+      let type: 'string' | 'number' | 'date' | 'boolean';
+
+      if (typeof sampleValue === 'number') {
+        type = 'number';
+      } else if (typeof sampleValue === 'boolean') {
+        type = 'boolean';
+      } else if (sampleValue instanceof Date ||
+                 (typeof sampleValue === 'string' && !isNaN(Date.parse(sampleValue)) &&
+                  /^\d{4}-\d{2}-\d{2}|^\d{1,2}\/\d{1,2}\/\d{4}|^\d{4}\/\d{1,2}\/\d{1,2}/.test(sampleValue))) {
+        type = 'date';
+      } else {
+        type = 'string';
+      }
+
       return {
         name: key,
         type,
@@ -124,93 +178,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
 
   // Determine layout mode based on chart type
   const shouldUseVerticalLayout = (templateId: string | null): boolean => {
-    return getChartLayoutType(templateId) === 'big';
-  };
-
-  // Toggle section collapse state
-  const toggleSection = (sectionKey: string) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey]
-    }));
-  };
-
-  // Collapsible section wrapper component
-  const CollapsibleSection: React.FC<{
-    title: string;
-    sectionKey: string;
-    icon: string;
-    children: React.ReactNode;
-    isActive?: boolean;
-  }> = ({ title, sectionKey, icon, children, isActive = false }) => {
-    const isCollapsed = layoutMode === 'vertical' && collapsedSections[sectionKey];
-    const shouldShowCollapsible = layoutMode === 'vertical';
-
-    return (
-      <div style={{
-        marginBottom: '16px',
-        border: shouldShowCollapsible ? '1px solid #e5e7eb' : 'none',
-        borderRadius: shouldShowCollapsible ? '8px' : '0',
-        overflow: 'hidden',
-        transition: 'all 0.3s ease'
-      }}>
-        {shouldShowCollapsible && (
-          <button
-            onClick={() => toggleSection(sectionKey)}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              background: isActive
-                ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
-                : isCollapsed
-                  ? '#f8fafc'
-                  : '#f1f5f9',
-              color: isActive ? '#ffffff' : '#374151',
-              border: 'none',
-              borderBottom: isCollapsed ? 'none' : '1px solid #e5e7eb',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.background = isCollapsed ? '#f1f5f9' : '#e2e8f0';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.background = isCollapsed ? '#f8fafc' : '#f1f5f9';
-              }
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>{icon}</span>
-              {title}
-            </span>
-            <span style={{
-              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-              transition: 'transform 0.3s ease',
-              fontSize: '12px'
-            }}>
-              ▼
-            </span>
-          </button>
-        )}
-        <div style={{
-          maxHeight: isCollapsed ? '0px' : '2000px',
-          opacity: isCollapsed ? 0 : 1,
-          overflow: 'hidden',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          padding: isCollapsed ? '0 16px' : '16px'
-        }}>
-          {children}
-        </div>
-      </div>
-    );
+    return false; // Always use horizontal (side-by-side) layout
   };
 
   useEffect(() => {
@@ -328,17 +296,30 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     const newLayoutMode = shouldUseVerticalLayout(selectedTemplate?.id || null) ? 'vertical' : 'horizontal';
 
     if (newLayoutMode !== layoutMode) {
-      setIsLayoutTransitioning(true);
-
-      // Smooth transition delay
-      setTimeout(() => {
-        setLayoutMode(newLayoutMode);
-        setTimeout(() => setIsLayoutTransitioning(false), 300);
-      }, 150);
+      // No transition animation - just set immediately to avoid resizing
+      setLayoutMode(newLayoutMode);
     }
   }, [selectedTemplate?.id, layoutMode]);
 
+  // Handle window resize for responsive chart dimensions
+  useEffect(() => {
+    const handleResize = () => {
+      const containerWidth = Math.min(window.innerWidth * 0.6 - 40, window.innerWidth - 200);
+      const containerHeight = containerWidth * (9/14);
+      setChartDimensions({
+        containerWidth,
+        containerHeight,
+        previewWidth: Math.floor(containerWidth),
+        previewHeight: Math.floor(containerHeight)
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const handleTemplateSelect = (template: ChartTemplate) => {
+    triggerAnimation('chartType');
     setSelectedTemplate(template);
 
     // Determine smart defaults based on chart type
@@ -716,16 +697,15 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         display: 'flex',
         flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
         height: layoutMode === 'vertical' ? 'auto' : 'auto',
-        minHeight: '75vh',
+        minHeight: '65vh',
         gap: layoutMode === 'vertical' ? '16px' : '12px',
         maxWidth: '1600px',
         width: '100%',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        opacity: isLayoutTransitioning ? 0.7 : 1
+        transition: 'none'
       }}>
         {/* Configuration Panel - Adaptive sizing */}
         <div style={{
-          width: layoutMode === 'vertical' ? '100%' : '40%',
+          width: layoutMode === 'vertical' ? '100%' : '35%',
           height: layoutMode === 'vertical' ? 'auto' : 'auto',
           order: layoutMode === 'vertical' ? 2 : 1,
           background: 'rgba(255, 255, 255, 0.98)',
@@ -735,10 +715,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           display: 'flex',
           flexDirection: 'column',
           height: layoutMode === 'vertical' ? 'auto' : 'auto',
-          minHeight: layoutMode === 'vertical' ? 'auto' : '80vh',
-          maxHeight: layoutMode === 'vertical' ? 'none' : '85vh',
-          overflow: 'hidden',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+          minHeight: layoutMode === 'vertical' ? 'auto' : '70vh',
+          maxHeight: layoutMode === 'vertical' ? 'none' : '75vh',
+          overflow: 'hidden'
         }}>
           {/* Chart Type Selection - Compact Dropdown */}
           <div style={{ padding: '14px 20px 12px 20px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
@@ -783,8 +762,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           {/* Configuration Panel with Tabs */}
           {selectedTemplate && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              {/* Tab Navigation - Only show in horizontal layout */}
-              {layoutMode === 'horizontal' && (
+              {/* Tab Navigation */}
               <div style={{ padding: '12px 20px 0 20px', flexShrink: 0 }}>
                 <div style={{
                   display: 'flex',
@@ -829,25 +807,18 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                   ))}
                 </div>
               </div>
-              )}
 
-              {/* Content Area - Adaptive for both layouts */}
+              {/* Tab Content - Fixed Height */}
               <div style={{
-                padding: layoutMode === 'vertical' ? '8px' : '16px 20px',
-                height: layoutMode === 'vertical' ? 'auto' : 'calc(80vh - 220px)',
-                overflowY: layoutMode === 'vertical' ? 'visible' : 'auto',
+                padding: '16px 20px',
+                height: 'calc(70vh - 200px)',
+                overflowY: 'auto',
                 overflowX: 'hidden',
-                minHeight: layoutMode === 'vertical' ? 'auto' : '500px'
+                minHeight: '400px'
               }}>
-                {/* Data Section */}
-                {(layoutMode === 'horizontal' ? activeTab === 'data' : true) && (
-                  <CollapsibleSection
-                    title="Data Configuration"
-                    sectionKey="data"
-                    icon="📊"
-                    isActive={activeTab === 'data'}
-                  >
-                    <div>
+                {/* Data Tab */}
+                {activeTab === 'data' && (
+                  <div>
                     {/* Table Selection */}
                     {projectData.tables && projectData.tables.length > 0 && (
                       <div style={{ marginBottom: '20px', padding: '16px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
@@ -918,7 +889,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           }}
                         >
                           <option value="">Select field...</option>
-                          {allColumns.map(col => (
+                          {categoricalColumns.map(col => (
                             <option key={col.name} value={col.name}>{col.name} ({col.type})</option>
                           ))}
                         </select>
@@ -974,7 +945,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           }}
                         >
                           <option value="">Select field...</option>
-                          {allColumns.map(col => (
+                          {categoricalColumns.map(col => (
                             <option key={col.name} value={col.name}>{col.name} ({col.type})</option>
                           ))}
                         </select>
@@ -1030,26 +1001,19 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           }}
                         >
                           <option value="">Select field...</option>
-                          {(selectedTemplate?.id === 'stacked-bar' ? categoricalColumns : allColumns).map(col => (
+                          {categoricalColumns.map(col => (
                             <option key={col.name} value={col.name}>{col.name} ({col.type})</option>
                           ))}
                         </select>
                       </div>
                     )}
 
-                    </div>
-                  </CollapsibleSection>
+                  </div>
                 )}
 
-                {/* Layout Section */}
-                {(layoutMode === 'horizontal' ? activeTab === 'layout' : true) && (
-                  <CollapsibleSection
-                    title="Layout & Positioning"
-                    sectionKey="layout"
-                    icon="📐"
-                    isActive={activeTab === 'layout'}
-                  >
-                    <div>
+                {/* Layout Tab */}
+                {activeTab === 'layout' && (
+                  <div>
                     {/* Layout Sub-tabs */}
                     <div style={{
                       display: 'flex',
@@ -1320,9 +1284,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                 name="legendMapping"
                                 checked={chartConfig.legendMapping === 'categories' || !chartConfig.legendMapping}
                                 onChange={() => {
-                                  setIsLegendMappingChange(true);
+                                  triggerAnimation('legendMapping');
                                   setChartConfig(prev => ({ ...prev, legendMapping: 'categories' }));
-                                  setTimeout(() => setIsLegendMappingChange(false), 1000);
                                 }}
                                 style={{ marginRight: '6px' }}
                               />
@@ -1334,9 +1297,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                 name="legendMapping"
                                 checked={chartConfig.legendMapping === 'series'}
                                 onChange={() => {
-                                  setIsLegendMappingChange(true);
+                                  triggerAnimation('legendMapping');
                                   setChartConfig(prev => ({ ...prev, legendMapping: 'series' }));
-                                  setTimeout(() => setIsLegendMappingChange(false), 1000);
                                 }}
                                 style={{ marginRight: '6px' }}
                               />
@@ -1664,7 +1626,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           <input
                             type="range"
                             min="8"
-                            max="16"
+                            max={selectedTemplate?.id === 'pie-chart' ? "25" : "16"}
                             value={chartConfig.dataLabelsFontSize || 11}
                             onChange={(e) => setChartConfig(prev => ({ ...prev, dataLabelsFontSize: Number(e.target.value) }))}
                             style={{ width: '100%' }}
@@ -2784,7 +2746,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           }}
                         >
                           <option value="">Select Series Field</option>
-                          {(selectedTemplate?.id === 'stacked-bar' ? categoricalColumns : allColumns).map(col => (
+                          {categoricalColumns.map(col => (
                             <option key={col.name} value={col.name}>{col.name} ({col.type})</option>
                           ))}
                         </select>
@@ -2942,8 +2904,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
 
         {/* Chart Preview Panel - Adaptive sizing */}
         <div style={{
-          width: layoutMode === 'vertical' ? '100%' : '60%',
-          height: layoutMode === 'vertical' ? '400px' : 'auto',
+          width: layoutMode === 'vertical' ? '100%' : '65%',
+          minHeight: chartDimensions.previewHeight + 80,
           order: layoutMode === 'vertical' ? 1 : 2,
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
@@ -2952,39 +2914,20 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          transform: isLayoutTransitioning ? 'scale(0.95)' : 'scale(1)'
+          padding: '20px'
         }}>
           {selectedTemplate && chartData ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              aspectRatio: layoutMode === 'vertical' ? '16/9' : getChartLayoutType(selectedTemplate?.id || null) === 'small' ? '1/1' : '16/9',
-              maxWidth: layoutMode === 'vertical' ? '100%' : '800px',
-              background: 'rgba(255, 255, 255, 0.8)',
-              borderRadius: '12px',
-              boxShadow: '0 8px 32px rgba(31, 38, 135, 0.37)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-              transition: 'all 0.3s ease',
-              opacity: chartOpacity,
-              padding: '20px'
-            }}>
-              <ChartRenderer
-                config={{
-                  ...chartConfig,
-                  paddingHorizontal,
-                  paddingVertical
-                }}
-                data={chartData}
-                width={layoutMode === 'vertical' ? 800 : getChartLayoutType(selectedTemplate?.id || null) === 'small' ? 400 : 720}
-                height={layoutMode === 'vertical' ? 450 : getChartLayoutType(selectedTemplate?.id || null) === 'small' ? 400 : 405}
-                forceDisableAnimation={!isDataSelection && !isLegendMappingChange}
-              />
-            </div>
+            <ChartRenderer
+              config={{
+                ...chartConfig,
+                paddingHorizontal,
+                paddingVertical
+              }}
+              data={chartData}
+              width={chartDimensions.previewWidth}
+              height={chartDimensions.previewHeight}
+              forceDisableAnimation={!isDataSelection && !isLegendMappingChange && !isChartTypeChange}
+            />
           ) : (
             <div style={{
               textAlign: 'center',
