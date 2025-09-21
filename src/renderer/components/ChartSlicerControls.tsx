@@ -364,10 +364,10 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
 
   // Toggle a slicer on/off for this chart
   const handleToggleSlicer = (slicerId: string, enabled: boolean) => {
-    const maxSlicersPerChart = 4;
+    const maxSlicersPerChart = 3;
 
     if (enabled && appliedSlicerIds.length >= maxSlicersPerChart) {
-      alert(`Maximum of ${maxSlicersPerChart} slicers allowed per chart`);
+      alert(`Maximum of ${maxSlicersPerChart} filters allowed per chart`);
       return;
     }
 
@@ -631,7 +631,7 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
           {compactShowLabel && (
             <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
-              🔍 Filters ({appliedSlicers.length})
+              🔍 Filters ({appliedSlicers.length}/3)
             </span>
           )}
 
@@ -647,16 +647,20 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
 
           <button
             onClick={() => setShowAddSlicer(!showAddSlicer)}
+            disabled={appliedSlicers.length >= 3 && !showAddSlicer}
             style={{
-              background: '#f3f4f6',
-              color: '#374151',
+              background: (appliedSlicers.length >= 3 && !showAddSlicer) ? '#f8fafc' : '#f3f4f6',
+              color: (appliedSlicers.length >= 3 && !showAddSlicer) ? '#9ca3af' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
               padding: '4px 8px',
-              fontSize: '11px',
-              cursor: 'pointer',
+              fontSize: '12px',
+              cursor: (appliedSlicers.length >= 3 && !showAddSlicer) ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
               fontWeight: '500'
             }}
+            title={appliedSlicers.length >= 3 ? 'Maximum filters reached (3/3)' : 'Manage filters'}
           >
             {showAddSlicer ? '✕' : '⚙️'}
           </button>
@@ -838,16 +842,16 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                         <button
                           key={slicer.id}
                           onClick={() => handleToggleSlicer(slicer.id, true)}
-                          disabled={appliedSlicerIds.length >= 4}
+                          disabled={appliedSlicerIds.length >= 3}
                           style={{
-                            background: appliedSlicerIds.length >= 4 ? '#f8fafc' : '#dbeafe',
-                            color: appliedSlicerIds.length >= 4 ? '#9ca3af' : '#1e40af',
+                            background: appliedSlicerIds.length >= 3 ? '#f8fafc' : '#dbeafe',
+                            color: appliedSlicerIds.length >= 3 ? '#9ca3af' : '#1e40af',
                             border: 'none',
                             borderRadius: '4px',
                             padding: '6px 12px',
                             fontSize: '12px',
                             fontWeight: '500',
-                            cursor: appliedSlicerIds.length >= 4 ? 'not-allowed' : 'pointer'
+                            cursor: appliedSlicerIds.length >= 3 ? 'not-allowed' : 'pointer'
                           }}
                         >
                           + {slicer.name}
@@ -876,14 +880,14 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
             🔍 Chart Filters
           </span>
           <span style={{
-            background: '#dbeafe',
-            color: '#1e40af',
+            background: appliedSlicers.length >= 3 ? '#fef2f2' : '#dbeafe',
+            color: appliedSlicers.length >= 3 ? '#dc2626' : '#1e40af',
             padding: '2px 6px',
             borderRadius: '12px',
             fontSize: '11px',
             fontWeight: '500'
           }}>
-            {appliedSlicers.length} active
+            {appliedSlicers.length}/3 active
           </span>
         </div>
         <button
@@ -1111,17 +1115,17 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                 <button
                   key={slicer.id}
                   onClick={() => handleToggleSlicer(slicer.id, true)}
-                  disabled={appliedSlicerIds.length >= 4}
+                  disabled={appliedSlicerIds.length >= 3}
                   style={{
-                    background: appliedSlicerIds.length >= 4 ? '#f8fafc' : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
-                    color: appliedSlicerIds.length >= 4 ? '#9ca3af' : '#1e40af',
-                    border: `1px solid ${appliedSlicerIds.length >= 4 ? '#e2e8f0' : '#93c5fd'}`,
+                    background: appliedSlicerIds.length >= 3 ? '#f8fafc' : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                    color: appliedSlicerIds.length >= 3 ? '#9ca3af' : '#1e40af',
+                    border: `1px solid ${appliedSlicerIds.length >= 3 ? '#e2e8f0' : '#93c5fd'}`,
                     borderRadius: '6px',
                     padding: '4px 8px',
                     fontSize: '11px',
                     fontWeight: '500',
-                    cursor: appliedSlicerIds.length >= 4 ? 'not-allowed' : 'pointer',
-                    boxShadow: appliedSlicerIds.length >= 4 ? 'none' : '0 1px 2px rgba(59, 130, 246, 0.1)',
+                    cursor: appliedSlicerIds.length >= 3 ? 'not-allowed' : 'pointer',
+                    boxShadow: appliedSlicerIds.length >= 3 ? 'none' : '0 1px 2px rgba(59, 130, 246, 0.1)',
                     transition: 'all 0.2s'
                   }}
                 >

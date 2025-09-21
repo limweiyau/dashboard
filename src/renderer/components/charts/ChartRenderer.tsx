@@ -40,18 +40,29 @@ function formatNumberValue(value: number, format: ChartConfiguration['numberForm
   // Handle decimals and thousands separators together
   let result: string;
 
+  // Auto-adjust decimal places for display units if needed
+  let effectiveDecimals = format.decimals !== undefined ? format.decimals : 2;
+
+  // If display unit is applied and decimals is 0, but result has meaningful decimals, auto-adjust
+  if (format.displayUnit && format.displayUnit !== 'none' && format.decimals === 0) {
+    const decimalPart = formattedValue - Math.floor(formattedValue);
+    if (decimalPart > 0.001) { // If there are meaningful decimals
+      // Count significant decimal places (up to 3)
+      const decimalStr = decimalPart.toFixed(6);
+      const significantDecimals = Math.min(3, decimalStr.replace('0.', '').replace(/0+$/, '').length);
+      effectiveDecimals = Math.max(1, significantDecimals);
+    }
+  }
+
   if (format.thousands) {
     // Use toLocaleString with proper decimal places option
-    const decimals = format.decimals !== undefined ? format.decimals : 2;
     result = formattedValue.toLocaleString(undefined, {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals
+      minimumFractionDigits: effectiveDecimals,
+      maximumFractionDigits: effectiveDecimals
     });
   } else {
     // Handle decimals only
-    if (format.decimals !== undefined) {
-      formattedValue = Number(formattedValue.toFixed(format.decimals));
-    }
+    formattedValue = Number(formattedValue.toFixed(effectiveDecimals));
     result = String(formattedValue);
   }
 
@@ -216,6 +227,7 @@ interface ChartRendererProps {
   height?: number;
   forceDisableAnimation?: boolean; // Optional prop to disable animations contextually
   scaleFactor?: number; // New prop for proportional scaling of all elements
+  tooltipZIndex?: number; // Z-index for tooltips (useful for modals)
 }
 
 const ChartRenderer: React.FC<ChartRendererProps> = ({
@@ -224,7 +236,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
   width = 600,
   height = 400,
   forceDisableAnimation = false,
-  scaleFactor = 1.0
+  scaleFactor = 1.0,
+  tooltipZIndex = 1000
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const svgHeight = Math.max(height - 50, 0); // Reserve space for title/actions without forcing re-renders
@@ -295,7 +308,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
       .style('font-weight', '500')
       .style('pointer-events', 'none')
       .style('box-shadow', '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)')
-      .style('z-index', '1000');
+      .style('z-index', String(tooltipZIndex));
 
     // Generate colors using the new color management system
     const colors = getColors(config, data);

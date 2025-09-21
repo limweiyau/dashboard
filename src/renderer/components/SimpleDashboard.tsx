@@ -11,7 +11,13 @@ import DateRangeManager from './DateRangeManager';
 import DateRangeFilter from './DateRangeFilter';
 import { GeminiClient } from '../utils/geminiClient';
 
-type ChartAnalysisEntry = { content: string; isGenerating: boolean; error?: string };
+type ChartAnalysisEntry = {
+  content: string;
+  isGenerating: boolean;
+  error?: string;
+  filterFingerprint?: string;
+  generatedAt?: number;
+};
 type ChartAnalysisMap = Record<string, ChartAnalysisEntry>;
 
 interface SimpleDashboardProps {
@@ -103,6 +109,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     }
   }, [chartAnalyses, analysisStorageKey, hasRestoredAnalyses]);
 
+  // Monitor filter changes and clear invalid analyses
+  useEffect(() => {
+    clearInvalidAnalyses();
+  }, [selectedDateRange, selectedDateRanges, projectData.charts]);
+
   useEffect(() => {
     setChartAnalyses(prev => {
       const validIds = new Set(projectData.charts.map(chart => chart.id));
@@ -158,7 +169,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     const baseHeight = Math.max(Math.round(chartWidth * 9 / 16), 480);
     const chartHeight = baseHeight;
     const cardMinHeight = chartHeight + 130;
-    const cardWidth = chartWidth + 32;
+    const cardWidth = chartWidth + 120; // Increased significantly to accommodate 3 multi-select filters + gear icon
 
     return {
       isCompact: isCompactChart,
@@ -167,6 +178,57 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       chartHeight,
       cardMinHeight
     };
+  };
+
+  // Generate filter fingerprint for analysis accuracy
+  const generateFilterFingerprint = (chart: Chart) => {
+    const appliedSlicerIds = chart.config.appliedSlicers || [];
+    const appliedSlicers = projectData.slicers.filter(s => appliedSlicerIds.includes(s.id));
+
+    const filterState = {
+      dateRange: selectedDateRange,
+      dateRanges: selectedDateRanges,
+      // Only include slicers that actually filter data (have specific values selected)
+      slicers: appliedSlicers
+        .filter(slicer => slicer.selectedValues && slicer.selectedValues.length > 0)
+        .map(slicer => ({
+          id: slicer.id,
+          column: slicer.column,
+          selectedValues: slicer.selectedValues.sort() // Sort for consistent ordering
+        }))
+    };
+    return btoa(JSON.stringify(filterState)).replace(/[+/=]/g, ''); // Simple hash
+  };
+
+  // Check if stored analysis is valid for current filters
+  const isAnalysisValid = (chart: Chart) => {
+    const analysis = chartAnalyses[chart.id];
+    if (!analysis?.content || !analysis.filterFingerprint) return false;
+
+    const currentFingerprint = generateFilterFingerprint(chart);
+    return analysis.filterFingerprint === currentFingerprint;
+  };
+
+  // Clear analysis when filters change
+  const clearInvalidAnalyses = () => {
+    setChartAnalyses(prev => {
+      const updated = { ...prev };
+      let hasChanges = false;
+
+      Object.keys(updated).forEach(chartId => {
+        const chart = projectData.charts.find(c => c.id === chartId);
+        if (chart && updated[chartId]?.content && !isAnalysisValid(chart)) {
+          updated[chartId] = {
+            ...updated[chartId],
+            content: '',
+            filterFingerprint: undefined
+          };
+          hasChanges = true;
+        }
+      });
+
+      return hasChanges ? updated : prev;
+    });
   };
 
   const handleDateRangeAdd = (dateRange: DateRange) => {
@@ -562,26 +624,31 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       return;
     }
 
+    const filterFingerprint = generateFilterFingerprint(chart);
+
     // Set generating state
     setChartAnalyses(prev => ({
       ...prev,
       [chart.id]: {
         content: prev[chart.id]?.content || '',
         isGenerating: true,
-        error: undefined
+        error: undefined,
+        filterFingerprint: undefined
       }
     }));
 
     try {
       const geminiClient = new GeminiClient(settings.apiKeys.gemini);
-      const analysis = await geminiClient.generateChartInsights(chartData.datasets[0]?.data || [], chart.config);
+      const analysis = await geminiClient.generateChartInsights(chartData, chart.config);
 
       setChartAnalyses(prev => ({
         ...prev,
         [chart.id]: {
           content: analysis,
           isGenerating: false,
-          error: undefined
+          error: undefined,
+          filterFingerprint,
+          generatedAt: Date.now()
         }
       }));
 
@@ -596,7 +663,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         [chart.id]: {
           content: prev[chart.id]?.content || '',
           isGenerating: false,
-          error: error instanceof Error ? error.message : 'Failed to generate analysis'
+          error: error instanceof Error ? error.message : 'Failed to generate analysis',
+          filterFingerprint: undefined
         }
       }));
       alert('Failed to generate analysis. Please check your API key and try again.');
@@ -1042,7 +1110,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         {/* Generate/Analysis Button */}
                         <button
                           onClick={() => {
-                            if (chartAnalyses[chart.id]?.content) {
+                            if (isAnalysisValid(chart)) {
                               // Show existing analysis
                               setModalChart(chart);
                               setModalChartData(generateChartData(chart));
@@ -1054,13 +1122,21 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                           }}
                           style={{
                             padding: '10px 18px',
-                            background: chartAnalyses[chart.id]?.content
-                              ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
-                              : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            background: (() => {
+                              if (chartAnalyses[chart.id]?.isGenerating) {
+                                return 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)';
+                              } else if (isAnalysisValid(chart)) {
+                                return 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+                              } else if (chartAnalyses[chart.id]?.content && !isAnalysisValid(chart)) {
+                                return 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+                              } else {
+                                return 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                              }
+                            })(),
                             color: 'white',
                             border: 'none',
                             borderRadius: 10,
-                            cursor: 'pointer',
+                            cursor: chartAnalyses[chart.id]?.isGenerating ? 'not-allowed' : 'pointer',
                             fontSize: '14px',
                             fontWeight: '600',
                             transition: 'all 0.2s ease',
@@ -1083,8 +1159,10 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                               }}></div>
                               Generating...
                             </>
-                          ) : chartAnalyses[chart.id]?.content ? (
+                          ) : isAnalysisValid(chart) ? (
                             '📊 Analysis'
+                          ) : chartAnalyses[chart.id]?.content ? (
+                            '⚠️ Generate (Filters Changed)'
                           ) : (
                             '✨ Generate'
                           )}
@@ -1407,6 +1485,17 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           }}
           onRegenerate={() => handleGenerateAnalysis(modalChart)}
           isRegenerating={chartAnalyses[modalChart.id]?.isGenerating || false}
+          appliedFilters={(() => {
+            const appliedSlicerIds = modalChart.config.appliedSlicers || [];
+            const appliedSlicers = projectData.slicers.filter(s => appliedSlicerIds.includes(s.id));
+            return appliedSlicers
+              .filter(slicer => slicer.selectedValues && slicer.selectedValues.length > 0) // Only filters that actually affect data
+              .map(slicer => ({
+                name: slicer.name,
+                column: slicer.column,
+                selectedValues: slicer.selectedValues
+              }));
+          })()}
         />
       )}
     </div>

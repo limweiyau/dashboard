@@ -11,6 +11,11 @@ interface ChartAnalysisModalProps {
   onClose: () => void;
   onRegenerate: () => void;
   isRegenerating: boolean;
+  appliedFilters?: Array<{
+    name: string;
+    column: string;
+    selectedValues: any[];
+  }>;
 }
 
 const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
@@ -20,7 +25,8 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
   isOpen,
   onClose,
   onRegenerate,
-  isRegenerating
+  isRegenerating,
+  appliedFilters = []
 }) => {
   if (!isOpen) return null;
 
@@ -176,6 +182,7 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
                 width={dimensions.width}
                 height={dimensions.height}
                 forceDisableAnimation={false}
+                tooltipZIndex={2100}
               />
             ) : (
               <div style={{
@@ -215,13 +222,10 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
                   section.replace(/^(Analysis|Insights|Recommendations?):\s*/i, '').trim()
                 ).filter(section => section.length > 0);
 
-                // Distribute content across three sections
+                // Distribute content across two sections (removed recommendations)
                 const analysisContent = cleanedSections[0] || '';
-                const insightsContent = cleanedSections.slice(1, -1).join('\n\n') ||
+                const insightsContent = cleanedSections.slice(1).join('\n\n') ||
                   (cleanedSections.length > 1 ? cleanedSections[cleanedSections.length - 1] : '');
-                const recommendationsContent = cleanedSections.length > 2 ?
-                  cleanedSections[cleanedSections.length - 1] :
-                  'Consider applying filters and exploring different time periods to uncover additional patterns in your data.';
 
                 return (
                   <>
@@ -283,33 +287,90 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
                       </div>
                     )}
 
-                    {/* Recommendations Section */}
-                    <div style={{
-                      background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-                      border: '2px solid #fbbf24',
-                      borderRadius: '16px',
-                      padding: '20px'
-                    }}>
-                      <h3 style={{
-                        margin: '0 0 16px 0',
-                        fontSize: '16px',
-                        fontWeight: '700',
-                        color: '#92400e',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        🎯 Recommendations
-                      </h3>
+                    {/* Applied Filters Section */}
+                    {appliedFilters.length > 0 ? (
                       <div style={{
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                        color: '#78350f',
-                        whiteSpace: 'pre-wrap'
+                        background: 'linear-gradient(135deg, #fef7ff 0%, #f3e8ff 100%)',
+                        border: '2px solid #c084fc',
+                        borderRadius: '16px',
+                        padding: '20px'
                       }}>
-                        {recommendationsContent}
+                        <h3 style={{
+                          margin: '0 0 16px 0',
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          color: '#7c3aed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          🔍 Applied Filters
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {appliedFilters.map((filter, index) => (
+                            <div key={index} style={{
+                              background: 'rgba(255, 255, 255, 0.9)',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: '1px solid #c084fc',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}>
+                              <div style={{
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                color: '#7c3aed',
+                                minWidth: '80px'
+                              }}>
+                                {filter.name}
+                              </div>
+                              <div style={{
+                                fontSize: '13px',
+                                color: '#6b46c1',
+                                textAlign: 'right',
+                                flex: 1,
+                                marginLeft: '12px'
+                              }}>
+                                {filter.selectedValues.length === 1 ? (
+                                  `"${filter.selectedValues[0]}"`
+                                ) : filter.selectedValues.length <= 3 ? (
+                                  filter.selectedValues.map(val => `"${val}"`).join(', ')
+                                ) : (
+                                  `${filter.selectedValues.length} values: ${filter.selectedValues.slice(0, 2).map(val => `"${val}"`).join(', ')}...`
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div style={{
+                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '16px',
+                        padding: '20px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔍</div>
+                        <h3 style={{
+                          margin: '0 0 8px 0',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          color: '#475569'
+                        }}>
+                          No Filters Applied
+                        </h3>
+                        <p style={{
+                          margin: 0,
+                          fontSize: '14px',
+                          color: '#64748b',
+                          lineHeight: '1.5'
+                        }}>
+                          This analysis includes all available data. Add filters to focus on specific segments.
+                        </p>
+                      </div>
+                    )}
                   </>
                 );
               })()

@@ -74,13 +74,30 @@ export class GeminiClient {
     return response.text();
   }
 
-  async generateChartInsights(data: any[], chartConfig: any, modelName: string = 'gemini-1.5-flash'): Promise<string> {
+  async generateChartInsights(chartData: any, chartConfig: any, modelName: string = 'gemini-1.5-flash'): Promise<string> {
     if (!this.genAI) {
       throw new Error('API key not set');
     }
 
-    const sampleData = data; // Send all chart data for complete analysis
-    const dataPreview = JSON.stringify(sampleData, null, 2);
+    // Extract labels and data for context-aware analysis
+    const labels = chartData?.labels || [];
+    const datasets = chartData?.datasets || [];
+    const sampleData = datasets[0]?.data || [];
+
+    // Create structured data for AI with proper context
+    const structuredData = {
+      labels: labels,
+      datasets: datasets.map((dataset: any) => ({
+        label: dataset.label,
+        data: dataset.data
+      })),
+      dataPreview: labels.map((label: string, index: number) => ({
+        category: label,
+        value: sampleData[index] || 0
+      }))
+    };
+
+    const dataPreview = JSON.stringify(structuredData, null, 2);
     const chartType = (chartConfig?.templateId || chartConfig?.type || chartConfig?.chartType || 'unknown').toLowerCase();
 
     const getChartGuidance = () => {
@@ -140,10 +157,13 @@ ANALYSIS:
 INSIGHTS:
 [${guidance.insights} Provide 3-4 concrete business recommendations grounded in the chart. 80 words maximum.]
 
-Requirements:
+CRITICAL REQUIREMENTS:
 - Use EXACTLY the format above with "ANALYSIS:" and "INSIGHTS:" headers
+- ALWAYS use the EXACT category names from the data (e.g., "MY", "TH", "SG" NOT "country 1", "country 2")
+- ALWAYS use the EXACT dataset labels from the data (e.g., if dataset label is "Sales", use "Sales" NOT "series 1")
+- NEVER use generic terms like "category 1", "month 1", "country 1" - use the actual labels provided
+- Include specific values, series names, and category names EXACTLY as they appear in the data
 - Analyze ALL data points from ALL series/categories shown, not just one series
-- Include specific values, series names, and category names from the data
 - Compare performance across different series if multiple series exist
 - Plain text only (no markdown, asterisks, or formatting)
 - Maximum 200 words total (120 for analysis, 80 for insights)
