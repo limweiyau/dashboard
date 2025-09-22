@@ -48,8 +48,10 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const [isDataSelection, setIsDataSelection] = useState(false);
   const [isLegendMappingChange, setIsLegendMappingChange] = useState(false);
   const [isChartTypeChange, setIsChartTypeChange] = useState(false);
+  const [isNavbarVisible, setIsNavbarVisible] = useState(true);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const legendMappingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScrollY = useRef(0);
 
   // Helper function to manage animation state
   const triggerAnimation = (type: 'chartType' | 'legendMapping', duration = 800) => {
@@ -315,7 +317,36 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    // Force initial recalculation to fix positioning
+    const timer = setTimeout(() => {
+      handleResize();
+    }, 100);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // Auto-hide navbar on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+        // Scrolling down & past 100px - hide navbar
+        setIsNavbarVisible(false);
+      } else if (currentScrollY < lastScrollY.current) {
+        // Scrolling up - show navbar
+        setIsNavbarVisible(true);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleTemplateSelect = (template: ChartTemplate) => {
@@ -714,13 +745,23 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           backdropFilter: 'blur(20px)',
           display: 'flex',
           flexDirection: 'column',
-          height: layoutMode === 'vertical' ? 'auto' : 'auto',
-          minHeight: layoutMode === 'vertical' ? 'auto' : '70vh',
-          maxHeight: layoutMode === 'vertical' ? 'none' : '75vh',
-          overflow: 'hidden'
+          flexWrap: 'nowrap',
+          height: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 80, 500),
+          minHeight: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 80, 500),
+          maxHeight: layoutMode === 'vertical' ? 'none' : Math.max(chartDimensions.previewHeight + 80, 500),
+          overflow: 'hidden',
+          willChange: 'height',
+          contain: 'layout'
         }}>
           {/* Chart Type Selection - Compact Dropdown */}
-          <div style={{ padding: '14px 20px 12px 20px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+          <div style={{
+            padding: '14px 20px 12px 20px',
+            borderBottom: '1px solid #f1f5f9',
+            flexShrink: 0,
+            transform: `translateY(${isNavbarVisible ? '0' : '-100%'})`,
+            transition: 'transform 0.3s ease-in-out',
+            overflow: 'hidden'
+          }}>
             <label style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px', display: 'block' }}>
               📊 Chart Type
             </label>
@@ -808,13 +849,15 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Tab Content - Fixed Height */}
+              {/* Tab Content - Dynamic Height */}
               <div style={{
                 padding: '16px 20px',
-                height: 'calc(70vh - 200px)',
+                height: Math.max(chartDimensions.previewHeight + 80, 500) - 220 - 120, // totalHeight - buttonHeight - headerSpace
+                maxHeight: Math.max(chartDimensions.previewHeight + 80, 500) - 220 - 120,
                 overflowY: 'auto',
                 overflowX: 'hidden',
-                minHeight: '400px'
+                minHeight: '300px',
+                flex: '1 1 auto'
               }}>
                 {/* Data Tab */}
                 {activeTab === 'data' && (
@@ -2850,14 +2893,26 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           {/* Fixed Save/Cancel buttons - Always visible */}
           {selectedTemplate && (
             <div style={{
-              padding: '20px 20px 16px 20px',
+              padding: '16px 20px',
               borderTop: '1px solid rgba(148, 163, 184, 0.2)',
               background: 'rgba(248, 250, 252, 0.95)',
               flexShrink: 0,
               borderRadius: '0 0 12px 12px',
-              marginTop: '4px' // Reduced from 16px for 100% viewport usage
+              marginTop: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 100,
+              position: 'relative',
+              transform: 'translateZ(0)'
             }}>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                width: '100%',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
                 <button
                   onClick={handleSave}
                   disabled={!isConfigurationComplete()}

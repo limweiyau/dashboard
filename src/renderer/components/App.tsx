@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import ProjectList from './ProjectList';
@@ -16,6 +16,8 @@ const App: React.FC = () => {
     selectedModels: { gemini: 'gemini-2.5-flash' }
   });
   const [loading, setLoading] = useState(true);
+  const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+  const lastScrollY = useRef(0);
 
 
   useEffect(() => {
@@ -44,6 +46,28 @@ const App: React.FC = () => {
       window.electronAPI.removeAllListeners('menu-settings');
     };
   }, []);
+
+  // Auto-hide navbar on scroll (only in chart builder)
+  useEffect(() => {
+    if (currentView !== 'project') return; // Only apply in project view (chart builder)
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+        // Scrolling down & past 100px - hide navbar
+        setIsNavbarVisible(false);
+      } else if (currentScrollY < lastScrollY.current) {
+        // Scrolling up - show navbar
+        setIsNavbarVisible(true);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [currentView]);
 
   const loadProjects = async () => {
     try {
@@ -159,7 +183,11 @@ const App: React.FC = () => {
         justifyContent: 'space-between',
         alignItems: 'center',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        zIndex: 1000
+        zIndex: 1000,
+        transform: `translateY(${isNavbarVisible ? '0' : '-100%'})`,
+        transition: 'transform 0.3s ease-in-out',
+        position: 'sticky',
+        top: 0
       }}>
         {/* Left side - Logo and navigation */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
