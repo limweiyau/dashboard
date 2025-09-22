@@ -90,13 +90,19 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
 
   // Responsive chart dimensions based on window size
   const [chartDimensions, setChartDimensions] = useState(() => {
-    const containerWidth = Math.min(window.innerWidth * 0.6 - 40, window.innerWidth - 200);
-    const containerHeight = containerWidth * (9/16); // 16:9 aspect ratio
+    const maxContainerWidth = window.innerWidth > 1600 ? window.innerWidth * 0.95 - 48 : 1600 - 48;
+    const chartPanelWidth = maxContainerWidth * 0.65; // 65% for chart panel
+    const availableWidth = chartPanelWidth - 40; // Subtract padding
+
+    // Ensure chart doesn't exceed container bounds and maintains good proportions
+    const containerWidth = Math.min(availableWidth * 0.95, window.innerWidth * 0.55);
+    const containerHeight = containerWidth * (2/3); // More compact 3:2 aspect ratio
+
     return {
-      containerWidth,
-      containerHeight,
-      previewWidth: Math.floor(containerWidth),
-      previewHeight: Math.floor(containerHeight)
+      containerWidth: Math.max(300, containerWidth), // Minimum width
+      containerHeight: Math.max(200, containerHeight), // Minimum height (3:2 of 300)
+      previewWidth: Math.floor(Math.max(300, containerWidth)),
+      previewHeight: Math.floor(Math.max(200, containerHeight))
     };
   });
 
@@ -306,13 +312,19 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   // Handle window resize for responsive chart dimensions
   useEffect(() => {
     const handleResize = () => {
-      const containerWidth = Math.min(window.innerWidth * 0.6 - 40, window.innerWidth - 200);
-      const containerHeight = containerWidth * (9/14);
+      const maxContainerWidth = window.innerWidth > 1600 ? window.innerWidth * 0.95 - 48 : 1600 - 48;
+      const chartPanelWidth = maxContainerWidth * 0.65; // 65% for chart panel
+      const availableWidth = chartPanelWidth - 40; // Subtract padding
+
+      // Ensure chart doesn't exceed container bounds and maintains good proportions
+      const containerWidth = Math.min(availableWidth * 0.95, window.innerWidth * 0.55);
+      const containerHeight = containerWidth * (2/3); // More compact 3:2 aspect ratio
+
       setChartDimensions({
-        containerWidth,
-        containerHeight,
-        previewWidth: Math.floor(containerWidth),
-        previewHeight: Math.floor(containerHeight)
+        containerWidth: Math.max(300, containerWidth), // Minimum width
+        containerHeight: Math.max(200, containerHeight), // Minimum height (3:2 of 300)
+        previewWidth: Math.floor(Math.max(300, containerWidth)),
+        previewHeight: Math.floor(Math.max(200, containerHeight))
       });
     };
 
@@ -722,15 +734,18 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       justifyContent: 'center',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       padding: '24px',
-      overflowY: 'auto'
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      width: '100%',
+      boxSizing: 'border-box'
     }}>
       <div style={{
         display: 'flex',
         flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
         height: layoutMode === 'vertical' ? 'auto' : 'auto',
-        minHeight: '65vh',
+        minHeight: '55vh',
         gap: layoutMode === 'vertical' ? '16px' : '12px',
-        maxWidth: '1600px',
+        maxWidth: window.innerWidth > 1600 ? '95vw' : '1600px',
         width: '100%',
         transition: 'none'
       }}>
@@ -746,9 +761,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           display: 'flex',
           flexDirection: 'column',
           flexWrap: 'nowrap',
-          height: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 80, 500),
-          minHeight: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 80, 500),
-          maxHeight: layoutMode === 'vertical' ? 'none' : Math.max(chartDimensions.previewHeight + 80, 500),
+          height: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 60, 420),
+          minHeight: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 60, 420),
+          maxHeight: layoutMode === 'vertical' ? 'none' : Math.max(chartDimensions.previewHeight + 60, 420),
           overflow: 'hidden',
           willChange: 'height',
           contain: 'layout'
@@ -2893,7 +2908,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           {/* Fixed Save/Cancel buttons - Always visible */}
           {selectedTemplate && (
             <div style={{
-              padding: '16px 20px',
+              padding: '12px 16px',
               borderTop: '1px solid rgba(148, 163, 184, 0.2)',
               background: 'rgba(248, 250, 252, 0.95)',
               flexShrink: 0,
@@ -2918,7 +2933,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                   disabled={!isConfigurationComplete()}
                   style={{
                     flex: 1,
-                    padding: '12px 18px',
+                    padding: '10px 16px',
                     background: isConfigurationComplete()
                       ? '#10b981'
                       : '#9ca3af',
@@ -2938,7 +2953,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                   onClick={onCancel}
                   style={{
                     flex: 1,
-                    padding: '12px 18px',
+                    padding: '10px 16px',
                     background: '#6b7280',
                     color: 'white',
                     border: 'none',
@@ -2960,7 +2975,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         {/* Chart Preview Panel - Adaptive sizing */}
         <div style={{
           width: layoutMode === 'vertical' ? '100%' : '65%',
-          minHeight: chartDimensions.previewHeight + 80,
+          minHeight: chartDimensions.previewHeight + 60,
           order: layoutMode === 'vertical' ? 1 : 2,
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
@@ -2969,20 +2984,34 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px'
+          padding: '16px',
+          position: 'relative',
+          overflow: 'hidden'
         }}>
           {selectedTemplate && chartData ? (
-            <ChartRenderer
-              config={{
-                ...chartConfig,
-                paddingHorizontal,
-                paddingVertical
-              }}
-              data={chartData}
-              width={chartDimensions.previewWidth}
-              height={chartDimensions.previewHeight}
-              forceDisableAnimation={!isDataSelection && !isLegendMappingChange && !isChartTypeChange}
-            />
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              minWidth: chartDimensions.previewWidth,
+              minHeight: chartDimensions.previewHeight,
+              maxWidth: '100%',
+              maxHeight: '100%'
+            }}>
+              <ChartRenderer
+                config={{
+                  ...chartConfig,
+                  paddingHorizontal,
+                  paddingVertical
+                }}
+                data={chartData}
+                width={chartDimensions.previewWidth}
+                height={chartDimensions.previewHeight}
+                forceDisableAnimation={!isDataSelection && !isLegendMappingChange && !isChartTypeChange}
+              />
+            </div>
           ) : (
             <div style={{
               textAlign: 'center',

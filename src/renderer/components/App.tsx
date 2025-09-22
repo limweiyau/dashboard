@@ -178,7 +178,7 @@ const App: React.FC = () => {
       <nav style={{
         background: '#ffffff',
         borderBottom: '1px solid #e5e7eb',
-        padding: '36px 24px 16px 24px',
+        padding: '16px 24px 16px 24px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
