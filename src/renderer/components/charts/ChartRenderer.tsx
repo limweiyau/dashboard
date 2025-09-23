@@ -291,7 +291,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
     const chartHeight = actualHeight - margin.top - margin.bottom;
 
     const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
+      .attr('transform', `translate(${margin.left + (config.chartOffsetX || 0)},${margin.top + (config.chartOffsetY || 0)})`);
 
     // Create tooltip with theme colors
     const tooltip = d3.select('body').selectAll('.d3-tooltip').data([0]);

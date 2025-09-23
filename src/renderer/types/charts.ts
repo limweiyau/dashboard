@@ -106,6 +106,8 @@ export interface ChartConfiguration {
   yAxisMax?: number;
   paddingHorizontal?: number;
   paddingVertical?: number;
+  chartOffsetX?: number;
+  chartOffsetY?: number;
 }
 
 export interface ChartData {

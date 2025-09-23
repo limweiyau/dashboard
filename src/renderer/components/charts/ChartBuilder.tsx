@@ -45,6 +45,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const [axesSubTab, setAxesSubTab] = useState<'x-axis' | 'y-axis' | 'series'>('x-axis');
   const [paddingHorizontal, setPaddingHorizontal] = useState(20);
   const [paddingVertical, setPaddingVertical] = useState(20);
+  const [chartOffsetX, setChartOffsetX] = useState(0);
+  const [chartOffsetY, setChartOffsetY] = useState(0);
   const [selectedTableId, setSelectedTableId] = useState<string>('main');
   const [isDataSelection, setIsDataSelection] = useState(false);
   const [isLegendMappingChange, setIsLegendMappingChange] = useState(false);
@@ -313,6 +315,13 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           if (config.paddingVertical !== undefined) {
             setPaddingVertical(config.paddingVertical);
           }
+          // Load chart position offsets
+          if (config.chartOffsetX !== undefined) {
+            setChartOffsetX(config.chartOffsetX);
+          }
+          if (config.chartOffsetY !== undefined) {
+            setChartOffsetY(config.chartOffsetY);
+          }
         }
       }
     }
@@ -385,6 +394,17 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Sync chart position offsets with chart config
+  useEffect(() => {
+    setChartConfig(prev => ({
+      ...prev,
+      paddingHorizontal,
+      paddingVertical,
+      chartOffsetX,
+      chartOffsetY
+    }));
+  }, [paddingHorizontal, paddingVertical, chartOffsetX, chartOffsetY]);
 
   const handleTemplateSelect = (template: ChartTemplate) => {
     triggerAnimation('chartType');
@@ -2012,6 +2032,47 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                 onChange={(e) => setPaddingVertical(Number(e.target.value))}
                                 style={{ width: '100%' }}
                               />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Chart Position */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#374151' }}>
+                            Chart Position
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <div>
+                              <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block' }}>
+                                Shift Left/Right
+                              </label>
+                              <input
+                                type="range"
+                                min="-50"
+                                max="50"
+                                value={chartOffsetX}
+                                onChange={(e) => setChartOffsetX(Number(e.target.value))}
+                                style={{ width: '100%' }}
+                              />
+                              <div style={{ fontSize: '9px', color: '#9ca3af', textAlign: 'center', lineHeight: '1.2' }}>
+                                {chartOffsetX > 0 ? '+' : ''}{chartOffsetX}px
+                              </div>
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block' }}>
+                                Shift Up/Down
+                              </label>
+                              <input
+                                type="range"
+                                min="-50"
+                                max="50"
+                                value={chartOffsetY}
+                                onChange={(e) => setChartOffsetY(Number(e.target.value))}
+                                style={{ width: '100%' }}
+                              />
+                              <div style={{ fontSize: '9px', color: '#9ca3af', textAlign: 'center', lineHeight: '1.2' }}>
+                                {chartOffsetY > 0 ? '+' : ''}{chartOffsetY}px
+                              </div>
                             </div>
                           </div>
                         </div>
