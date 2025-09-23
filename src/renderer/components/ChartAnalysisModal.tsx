@@ -156,7 +156,7 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
         }}>
           {/* Chart Section */}
           <div style={{
-            width: '65%',
+            width: '55%',
             padding: '8px',
             display: 'flex',
             alignItems: 'center',
@@ -198,7 +198,7 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
 
           {/* Right Panel */}
           <div style={{
-            width: '35%',
+            width: '45%',
             display: 'flex',
             flexDirection: 'column',
             background: '#f8fafc',

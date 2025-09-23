@@ -1875,13 +1875,23 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                             </label>
                             <select
                               value={chartConfig.numberFormat?.displayUnit || 'none'}
-                              onChange={(e) => setChartConfig(prev => ({
-                                ...prev,
-                                numberFormat: {
-                                  ...prev.numberFormat,
-                                  displayUnit: e.target.value as any
+                              onChange={(e) => {
+                                const newDisplayUnit = e.target.value as any;
+                                // Auto-adjust decimal places based on display unit
+                                let autoDecimals = chartConfig.numberFormat?.decimals || 0;
+                                if (newDisplayUnit !== 'none' && autoDecimals === 0) {
+                                  autoDecimals = 2; // Default to 2 decimal places when using display units
                                 }
-                              }))}
+
+                                setChartConfig(prev => ({
+                                  ...prev,
+                                  numberFormat: {
+                                    ...prev.numberFormat,
+                                    displayUnit: newDisplayUnit,
+                                    decimals: autoDecimals
+                                  }
+                                }));
+                              }}
                               style={{
                                 width: '100%',
                                 padding: '6px 10px',

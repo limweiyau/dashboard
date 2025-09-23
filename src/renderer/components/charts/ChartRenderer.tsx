@@ -1437,8 +1437,13 @@ function renderPieChart(
   // Increase pie chart slice size and center it properly
   const minDimension = Math.min(width, height);
   const radius = Math.max(20, minDimension * 0.4025); // Increased by 15% (0.35 * 1.15)
+
+  // For pie charts, center within the chart area accounting for any applied offsets
+  const centerX = width / 2 - (config.chartOffsetX || 0);
+  const centerY = height / 2 - (config.chartOffsetY || 0);
+
   const pieGroup = g.append('g')
-    .attr('transform', `translate(${width / 2},${height / 2})`); // Centered without offset
+    .attr('transform', `translate(${centerX},${centerY})`); // Properly centered accounting for offsets
 
   // Add gradients and glassy effects like bar charts
   const defs = g.append('defs');
