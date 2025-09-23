@@ -32,16 +32,11 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
 
   const config = chart.config as ChartConfiguration;
 
-  // Calculate chart dimensions for modal (same size as Your Charts)
-  const getModalChartDimensions = (templateId: string) => {
-    const baseWidth = 700;
-    const baseHeight = Math.max(Math.round(baseWidth * 9 / 16), 480); // 16:9 aspect ratio, same as Your Charts
-
-    // All charts use same size - no special case for pie charts
-    return { width: baseWidth, height: baseHeight };
+  // Use exact same dimensions as Your Charts for 1:1 replica
+  const dimensions = {
+    width: config.chartWidth || 640,
+    height: config.chartHeight || 480
   };
-
-  const dimensions = getModalChartDimensions(config.templateId || chart.type);
 
   return (
     <div style={{
@@ -61,17 +56,18 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
         background: 'white',
         borderRadius: '16px',
         width: '95vw',
-        maxWidth: '1400px',
-        maxHeight: '95vh',
-        overflow: 'hidden',
+        maxWidth: '1600px',
+        height: 'auto',
+        maxHeight: '90vh',
+        overflow: 'auto',
         boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
         display: 'flex',
         flexDirection: 'column'
       }}>
         {/* Modal Header */}
         <div style={{
-          padding: '24px 32px',
-          borderBottom: '2px solid #f1f5f9',
+          padding: '12px 24px',
+          borderBottom: '1px solid #f1f5f9',
           background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
           display: 'flex',
           justifyContent: 'space-between',
@@ -80,35 +76,27 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
           <div>
             <h2 style={{
               margin: 0,
-              fontSize: '24px',
-              fontWeight: '700',
-              color: '#1e293b',
-              marginBottom: '4px'
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#1e293b'
             }}>
               {chart.config.title || 'Chart Analysis'}
             </h2>
-            <p style={{
-              margin: 0,
-              fontSize: '14px',
-              color: '#64748b'
-            }}>
-              AI-powered insights and analysis
-            </p>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button
               onClick={onRegenerate}
               disabled={isRegenerating}
               style={{
-                padding: '10px 16px',
+                padding: '6px 12px',
                 background: isRegenerating
                   ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'
                   : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                 color: 'white',
                 border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '500',
                 cursor: isRegenerating ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s ease',
                 opacity: isRegenerating ? 0.7 : 1
@@ -131,16 +119,16 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
             <button
               onClick={onClose}
               style={{
-                padding: '8px',
+                padding: '4px',
                 background: 'none',
                 border: 'none',
-                borderRadius: '6px',
-                fontSize: '20px',
+                borderRadius: '4px',
+                fontSize: '16px',
                 color: '#64748b',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                width: '36px',
-                height: '36px',
+                width: '28px',
+                height: '28px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -163,21 +151,27 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
         <div style={{
           display: 'flex',
           flex: 1,
-          overflow: 'hidden'
+          overflow: 'visible',
+          minHeight: '500px'
         }}>
           {/* Chart Section */}
           <div style={{
-            width: '60%',
-            padding: '32px',
+            width: '65%',
+            padding: '8px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
-            borderRight: '2px solid #f1f5f9'
+            borderRight: '2px solid #f1f5f9',
+            overflow: 'visible'
           }}>
             {chartData ? (
               <ChartRenderer
-                config={config}
+                config={{
+                  ...config,
+                  paddingHorizontal: config.paddingHorizontal || 20,
+                  paddingVertical: config.paddingVertical || 20
+                }}
                 data={chartData}
                 width={dimensions.width}
                 height={dimensions.height}
@@ -204,12 +198,12 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
 
           {/* Right Panel */}
           <div style={{
-            width: '40%',
+            width: '35%',
             display: 'flex',
             flexDirection: 'column',
             background: '#f8fafc',
-            padding: '24px',
-            gap: '20px',
+            padding: '20px',
+            gap: '16px',
             overflow: 'auto'
           }}>
             {analysis ? (

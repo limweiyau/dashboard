@@ -15,10 +15,11 @@ type ChartAnalysisEntry = {
   content: string;
   isGenerating: boolean;
   error?: string;
-  filterFingerprint?: string;
   generatedAt?: number;
 };
-type ChartAnalysisMap = Record<string, ChartAnalysisEntry>;
+
+// New nested structure: chartId -> filterFingerprint -> analysis
+type ChartAnalysisMap = Record<string, Record<string, ChartAnalysisEntry>>;
 
 interface SimpleDashboardProps {
   project: Project;
@@ -64,15 +65,45 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     try {
       const stored = window.localStorage.getItem(analysisStorageKey);
       if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, { content?: string; error?: string }>;
-        const restored = Object.entries(parsed).reduce((acc, [chartId, value]) => {
-          acc[chartId] = {
-            content: value.content ?? '',
-            error: value.error ?? undefined,
-            isGenerating: false
-          };
-          return acc;
-        }, {} as ChartAnalysisMap);
+        const parsed = JSON.parse(stored);
+
+        // Handle both old and new storage formats for backward compatibility
+        const restored: any = {};
+
+        Object.entries(parsed).forEach(([chartId, value]: [string, any]) => {
+          if (value && typeof value === 'object') {
+            // Check if this is the new nested format (fingerprint -> analysis)
+            if (value.content && typeof value.content === 'string') {
+              // Old format: direct analysis object
+              // Convert to new format with a default fingerprint
+              restored[chartId] = {
+                'legacy': {
+                  content: value.content,
+                  error: value.error,
+                  isGenerating: false,
+                  generatedAt: Date.now()
+                }
+              };
+            } else {
+              // New format: fingerprint -> analysis mapping
+              const chartData: any = {};
+              Object.entries(value).forEach(([fingerprint, analysis]: [string, any]) => {
+                if (analysis && analysis.content) {
+                  chartData[fingerprint] = {
+                    content: analysis.content,
+                    error: analysis.error,
+                    isGenerating: false,
+                    generatedAt: analysis.generatedAt || Date.now()
+                  };
+                }
+              });
+              if (Object.keys(chartData).length > 0) {
+                restored[chartId] = chartData;
+              }
+            }
+          }
+        });
+
         setChartAnalyses(restored);
       } else {
         setChartAnalyses(prev => (Object.keys(prev).length === 0 ? prev : {}));
@@ -91,17 +122,28 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     }
 
     try {
-      const persistable = Object.entries(chartAnalyses).reduce((acc, [chartId, analysis]) => {
-        if (!analysis?.content?.trim()) {
+      const persistable = Object.entries(chartAnalyses).reduce((acc, [chartId, chartData]) => {
+        if (!chartData || typeof chartData !== 'object') {
           return acc;
         }
 
-        acc[chartId] = {
-          content: analysis.content,
-          ...(analysis.error ? { error: analysis.error } : {})
-        };
+        // Filter out analyses with no content and include filter fingerprint
+        const validAnalyses = Object.entries(chartData).reduce((chartAcc, [fingerprint, analysis]) => {
+          if (analysis?.content?.trim()) {
+            chartAcc[fingerprint] = {
+              content: analysis.content,
+              generatedAt: analysis.generatedAt,
+              ...(analysis.error ? { error: analysis.error } : {})
+            };
+          }
+          return chartAcc;
+        }, {} as Record<string, { content: string; generatedAt?: number; error?: string }>);
+
+        if (Object.keys(validAnalyses).length > 0) {
+          acc[chartId] = validAnalyses;
+        }
         return acc;
-      }, {} as Record<string, { content: string; error?: string }>);
+      }, {} as Record<string, Record<string, { content: string; generatedAt?: number; error?: string }>>);
 
       window.localStorage.setItem(analysisStorageKey, JSON.stringify(persistable));
     } catch (error) {
@@ -200,35 +242,39 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     return btoa(JSON.stringify(filterState)).replace(/[+/=]/g, ''); // Simple hash
   };
 
-  // Check if stored analysis is valid for current filters
-  const isAnalysisValid = (chart: Chart) => {
-    const analysis = chartAnalyses[chart.id];
-    if (!analysis?.content || !analysis.filterFingerprint) return false;
+  // Helper function to get current analysis for a chart
+  const getCurrentAnalysis = (chart: Chart) => {
+    const chartData = chartAnalyses[chart.id];
+    if (!chartData) return null;
 
     const currentFingerprint = generateFilterFingerprint(chart);
-    return analysis.filterFingerprint === currentFingerprint;
+    return chartData[currentFingerprint] || null;
   };
 
-  // Clear analysis when filters change
+  // Check if stored analysis is valid for current filters
+  const isAnalysisValid = (chart: Chart) => {
+    const analysis = getCurrentAnalysis(chart);
+    return !!(analysis?.content);
+  };
+
+  // Check if analysis is currently being generated
+  const isAnalysisGenerating = (chart: Chart) => {
+    const analysis = getCurrentAnalysis(chart);
+    return !!(analysis?.isGenerating);
+  };
+
+  // Check if there's any analysis for this chart (regardless of filters)
+  const hasAnyAnalysis = (chart: Chart) => {
+    const chartData = chartAnalyses[chart.id];
+    if (!chartData) return false;
+
+    return Object.values(chartData).some(analysis => analysis?.content);
+  };
+
+  // Clear analysis when filters change - No longer needed since we persist all filter combinations
   const clearInvalidAnalyses = () => {
-    setChartAnalyses(prev => {
-      const updated = { ...prev };
-      let hasChanges = false;
-
-      Object.keys(updated).forEach(chartId => {
-        const chart = projectData.charts.find(c => c.id === chartId);
-        if (chart && updated[chartId]?.content && !isAnalysisValid(chart)) {
-          updated[chartId] = {
-            ...updated[chartId],
-            content: '',
-            filterFingerprint: undefined
-          };
-          hasChanges = true;
-        }
-      });
-
-      return hasChanges ? updated : prev;
-    });
+    // This function is kept for backward compatibility but no longer clears analyses
+    // All filter combinations are now persisted
   };
 
   const handleDateRangeAdd = (dateRange: DateRange) => {
@@ -630,10 +676,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     setChartAnalyses(prev => ({
       ...prev,
       [chart.id]: {
-        content: prev[chart.id]?.content || '',
-        isGenerating: true,
-        error: undefined,
-        filterFingerprint: undefined
+        ...prev[chart.id],
+        [filterFingerprint]: {
+          content: prev[chart.id]?.[filterFingerprint]?.content || '',
+          isGenerating: true,
+          error: undefined,
+          generatedAt: undefined
+        }
       }
     }));
 
@@ -644,11 +693,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       setChartAnalyses(prev => ({
         ...prev,
         [chart.id]: {
-          content: analysis,
-          isGenerating: false,
-          error: undefined,
-          filterFingerprint,
-          generatedAt: Date.now()
+          ...prev[chart.id],
+          [filterFingerprint]: {
+            content: analysis,
+            isGenerating: false,
+            error: undefined,
+            generatedAt: Date.now()
+          }
         }
       }));
 
@@ -661,10 +712,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       setChartAnalyses(prev => ({
         ...prev,
         [chart.id]: {
-          content: prev[chart.id]?.content || '',
-          isGenerating: false,
-          error: error instanceof Error ? error.message : 'Failed to generate analysis',
-          filterFingerprint: undefined
+          ...prev[chart.id],
+          [filterFingerprint]: {
+            content: prev[chart.id]?.[filterFingerprint]?.content || '',
+            isGenerating: false,
+            error: error instanceof Error ? error.message : 'Failed to generate analysis',
+            generatedAt: undefined
+          }
         }
       }));
       alert('Failed to generate analysis. Please check your API key and try again.');
@@ -1123,11 +1177,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                           style={{
                             padding: '6px 12px',
                             background: (() => {
-                              if (chartAnalyses[chart.id]?.isGenerating) {
+                              if (isAnalysisGenerating(chart)) {
                                 return 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)';
                               } else if (isAnalysisValid(chart)) {
                                 return 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
-                              } else if (chartAnalyses[chart.id]?.content && !isAnalysisValid(chart)) {
+                              } else if (hasAnyAnalysis(chart) && !isAnalysisValid(chart)) {
                                 return 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
                               } else {
                                 return 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
@@ -1136,18 +1190,18 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             color: 'white',
                             border: 'none',
                             borderRadius: 6,
-                            cursor: chartAnalyses[chart.id]?.isGenerating ? 'not-allowed' : 'pointer',
+                            cursor: isAnalysisGenerating(chart) ? 'not-allowed' : 'pointer',
                             fontSize: '12px',
                             fontWeight: '500',
                             transition: 'all 0.2s ease',
-                            opacity: chartAnalyses[chart.id]?.isGenerating ? 0.7 : 1,
+                            opacity: isAnalysisGenerating(chart) ? 0.7 : 1,
                             display: 'flex',
                             alignItems: 'center',
                             gap: '3px'
                           }}
-                          disabled={chartAnalyses[chart.id]?.isGenerating}
+                          disabled={isAnalysisGenerating(chart)}
                         >
-                          {chartAnalyses[chart.id]?.isGenerating ? (
+                          {isAnalysisGenerating(chart) ? (
                             <>
                               <div style={{
                                 width: '12px',
@@ -1161,7 +1215,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             </>
                           ) : isAnalysisValid(chart) ? (
                             'Analysis'
-                          ) : chartAnalyses[chart.id]?.content ? (
+                          ) : hasAnyAnalysis(chart) ? (
                             'Generate (Filters Changed)'
                           ) : (
                             'Generate'
@@ -1471,7 +1525,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         <ChartAnalysisModal
           chart={modalChart}
           chartData={modalChartData}
-          analysis={chartAnalyses[modalChart.id]?.content || ''}
+          analysis={getCurrentAnalysis(modalChart)?.content || ''}
           isOpen={showAnalysisModal}
           onClose={() => {
             setShowAnalysisModal(false);
@@ -1479,7 +1533,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             setModalChartData(null);
           }}
           onRegenerate={() => handleGenerateAnalysis(modalChart)}
-          isRegenerating={chartAnalyses[modalChart.id]?.isGenerating || false}
+          isRegenerating={isAnalysisGenerating(modalChart)}
           appliedFilters={(() => {
             const appliedSlicerIds = modalChart.config.appliedSlicers || [];
             const appliedSlicers = projectData.slicers.filter(s => appliedSlicerIds.includes(s.id));
