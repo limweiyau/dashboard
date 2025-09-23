@@ -104,6 +104,8 @@ export interface ChartConfiguration {
   xAxisMax?: number;
   yAxisMin?: number;
   yAxisMax?: number;
+  paddingHorizontal?: number;
+  paddingVertical?: number;
 }
 
 export interface ChartData {

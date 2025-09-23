@@ -305,6 +305,14 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
             yAxisMin: config.yAxisMin,
             yAxisMax: config.yAxisMax
           });
+
+          // Load padding state variables for 1:1 preview-to-display replica
+          if (config.paddingHorizontal !== undefined) {
+            setPaddingHorizontal(config.paddingHorizontal);
+          }
+          if (config.paddingVertical !== undefined) {
+            setPaddingVertical(config.paddingVertical);
+          }
         }
       }
     }
@@ -737,7 +745,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       config: {
         ...chartConfig,
         templateId: selectedTemplate.id, // Ensure templateId is preserved for correct chart type rendering
-        tableId: selectedTableId !== 'main' ? selectedTableId : undefined
+        tableId: selectedTableId !== 'main' ? selectedTableId : undefined,
+        paddingHorizontal, // Include padding values for 1:1 preview-to-display replica
+        paddingVertical    // Include padding values for 1:1 preview-to-display replica
       } as any, // Temporary fix for type compatibility
       createdAt: (chart?.createdAt || new Date()).toString(),
       updatedAt: new Date().toString()

@@ -1126,7 +1126,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                               if (chartAnalyses[chart.id]?.isGenerating) {
                                 return 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)';
                               } else if (isAnalysisValid(chart)) {
-                                return 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+                                return 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
                               } else if (chartAnalyses[chart.id]?.content && !isAnalysisValid(chart)) {
                                 return 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
                               } else {
@@ -1160,11 +1160,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                               Generating...
                             </>
                           ) : isAnalysisValid(chart) ? (
-                            '📊 Analysis'
+                            'Analysis'
                           ) : chartAnalyses[chart.id]?.content ? (
-                            '⚠️ Generate (Filters Changed)'
+                            'Generate (Filters Changed)'
                           ) : (
-                            '✨ Generate'
+                            'Generate'
                           )}
                         </button>
 
@@ -1281,7 +1281,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
                     {/* Maximized Chart Content */}
                     <div style={{
-                      padding: '6px',
+                      padding: '6px 6px 2px 6px',
                       background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
                       borderTop: '1px solid #e5e7eb',
                       display: 'flex',
@@ -1291,14 +1291,9 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                       <div style={{
                         width: '100%',
                         height: `${chartConfig.chartHeight}px`,
-                        background: 'rgba(255, 255, 255, 0.9)',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '12px'
+                        justifyContent: 'center'
                       }}>
                           {chartData ? (
                             <ChartRenderer
