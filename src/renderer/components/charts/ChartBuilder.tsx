@@ -35,7 +35,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     titleVerticalPosition: 'top',
     titleHorizontalPosition: 'center',
     legendVerticalPosition: 'top',
-    legendHorizontalPosition: 'center'
+    legendHorizontalPosition: 'center',
+    dataLabelsPosition: 'top'
   });
   const [chartOpacity, setChartOpacity] = useState(0.8);
   const [chartData, setChartData] = useState<ChartData | null>(null);
@@ -241,7 +242,23 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
 
             // Data labels
             showDataLabels: config.showDataLabels,
-            dataLabelsPosition: config.dataLabelsPosition,
+            dataLabelsPosition: config.dataLabelsPosition || (() => {
+              // Set appropriate default based on chart type
+              switch (template?.id) {
+                case 'pie-chart':
+                  return 'outside';
+                case 'simple-bar':
+                case 'multi-series-bar':
+                case 'stacked-bar':
+                case 'simple-line':
+                case 'multi-line':
+                case 'area-chart':
+                case 'scatter-plot':
+                  return 'top';
+                default:
+                  return 'top';
+              }
+            })(),
             dataLabelsColor: config.dataLabelsColor,
             dataLabelsOffsetX: config.dataLabelsOffsetX,
             dataLabelsOffsetY: config.dataLabelsOffsetY,
@@ -427,6 +444,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       legendPosition: 'right',
       legendVerticalPosition: 'top',
       legendHorizontalPosition: 'center',
+      dataLabelsPosition: template?.id === 'pie-chart' ? 'outside' : 'top',
       aggregation: 'sum'
     });
   };
@@ -1652,12 +1670,12 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                 onClick={() => setChartConfig(prev => ({ ...prev, dataLabelsPosition: option.value as any }))}
                                 style={{
                                   padding: '4px 8px',
-                                  border: '1px solid #e5e7eb',
+                                  border: chartConfig.dataLabelsPosition === option.value ? '2px solid #6366f1' : '1px solid #e5e7eb',
                                   borderRadius: '4px',
                                   fontSize: '10px',
                                   fontWeight: '500',
-                                  backgroundColor: chartConfig.dataLabelsPosition === option.value ? '#3b82f6' : 'white',
-                                  color: chartConfig.dataLabelsPosition === option.value ? 'white' : '#374151',
+                                  background: chartConfig.dataLabelsPosition === option.value ? '#eff6ff' : 'white',
+                                  color: chartConfig.dataLabelsPosition === option.value ? '#6366f1' : '#6b7280',
                                   cursor: 'pointer',
                                   textAlign: 'center',
                                   minHeight: '26px',
@@ -2908,7 +2926,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           {/* Fixed Save/Cancel buttons - Always visible */}
           {selectedTemplate && (
             <div style={{
-              padding: '12px 16px',
+              padding: '8px 16px',
               borderTop: '1px solid rgba(148, 163, 184, 0.2)',
               background: 'rgba(248, 250, 252, 0.95)',
               flexShrink: 0,

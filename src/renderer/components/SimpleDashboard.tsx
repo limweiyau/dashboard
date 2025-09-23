@@ -1121,7 +1121,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             }
                           }}
                           style={{
-                            padding: '10px 18px',
+                            padding: '6px 12px',
                             background: (() => {
                               if (chartAnalyses[chart.id]?.isGenerating) {
                                 return 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)';
@@ -1135,15 +1135,15 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             })(),
                             color: 'white',
                             border: 'none',
-                            borderRadius: 10,
+                            borderRadius: 6,
                             cursor: chartAnalyses[chart.id]?.isGenerating ? 'not-allowed' : 'pointer',
-                            fontSize: '14px',
-                            fontWeight: '600',
+                            fontSize: '12px',
+                            fontWeight: '500',
                             transition: 'all 0.2s ease',
                             opacity: chartAnalyses[chart.id]?.isGenerating ? 0.7 : 1,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '4px'
+                            gap: '3px'
                           }}
                           disabled={chartAnalyses[chart.id]?.isGenerating}
                         >
@@ -1172,14 +1172,14 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         <button
                           onClick={() => setSelectedChart(chart)}
                           style={{
-                            padding: '10px 18px',
+                            padding: '6px 12px',
                             background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: 10,
+                            borderRadius: 6,
                             cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: '600',
+                            fontSize: '12px',
+                            fontWeight: '500',
                             transition: 'all 0.2s ease'
                           }}
                         >
@@ -1190,14 +1190,14 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         <button
                           onClick={() => handleChartDelete(chart.id)}
                           style={{
-                            padding: '10px 18px',
+                            padding: '6px 12px',
                             background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: 10,
+                            borderRadius: 6,
                             cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: '600',
+                            fontSize: '12px',
+                            fontWeight: '500',
                             transition: 'all 0.2s ease'
                           }}
                         >
