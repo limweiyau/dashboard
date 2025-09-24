@@ -4,6 +4,7 @@ import { Chart, ProjectData, ColumnInfo } from '../../types';
 import { ChartConfiguration, ChartData, ChartTemplate } from '../../types/charts';
 import { CHART_TEMPLATES, COLOR_SCHEMES } from './chartTemplates';
 import ChartRenderer from './ChartRenderer';
+import { roundToMaxDecimals } from '../../utils/numberUtils';
 
 interface ChartBuilderProps {
   chart?: Chart;
@@ -745,7 +746,65 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       }
 
       if (labels.length > 0 && datasets.length > 0) {
-        setChartData({ labels, datasets });
+        // Round all dataset values and auto-detect decimal formatting needs
+        const roundedDatasets = datasets.map(dataset => {
+          const roundedData = (dataset.data as any[]).map(value => {
+            if (typeof value === 'number') {
+              return roundToMaxDecimals(value);
+            }
+
+            if (value && typeof value === 'object' && 'x' in value && 'y' in value) {
+              return {
+                ...value,
+                x: roundToMaxDecimals((value as any).x ?? 0),
+                y: roundToMaxDecimals((value as any).y ?? 0)
+              };
+            }
+
+            return value;
+          }) as typeof dataset.data;
+
+          return {
+            ...dataset,
+            data: roundedData
+          };
+        });
+
+        // Check if data has decimal values that need formatting
+        const decimalPlacesForValue = (value: number) => {
+          const absValue = Math.abs(value);
+          const parts = absValue.toString().split('.');
+          if (parts.length < 2) return 0;
+          const fractional = parts[1].replace(/0+$/, '');
+          return Math.min(3, fractional.length);
+        };
+
+        const isManualDecimals = chartConfig.numberFormat?.decimalsManuallySet;
+
+        if (!isManualDecimals) {
+          const detectedDecimals = roundedDatasets.reduce((maxDecimals, dataset) => {
+            const datasetMax = dataset.data.reduce((max, value) => {
+              if (typeof value !== 'number') return max;
+              const decimals = decimalPlacesForValue(value);
+              return Math.max(max, decimals);
+            }, 0);
+            return Math.max(maxDecimals, datasetMax);
+          }, 0);
+
+          // Auto-set decimal places based on detected precision when none configured yet
+          if (detectedDecimals > 0 && (chartConfig.numberFormat?.decimals ?? 0) === 0) {
+            setChartConfig(prev => ({
+              ...prev,
+              numberFormat: {
+                ...prev.numberFormat,
+                decimals: detectedDecimals,
+                decimalsManuallySet: false
+              }
+            }));
+          }
+        }
+
+        setChartData({ labels, datasets: roundedDatasets });
       } else {
         setChartData(null);
       }
@@ -1801,13 +1860,14 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                             <input
                               type="number"
                               min="0"
-                              max="5"
-                              value={chartConfig.numberFormat?.decimals || 0}
+                              max="3"
+                              value={chartConfig.numberFormat?.decimals ?? 0}
                               onChange={(e) => setChartConfig(prev => ({
                                 ...prev,
                                 numberFormat: {
                                   ...prev.numberFormat,
-                                  decimals: Number(e.target.value)
+                                  decimals: Math.max(0, Math.min(Number(e.target.value), 3)),
+                                  decimalsManuallySet: true
                                 }
                               }))}
                               style={{
@@ -1873,27 +1933,35 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                             <label style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', marginBottom: '6px', display: 'block' }}>
                               Display Unit
                             </label>
-                            <select
-                              value={chartConfig.numberFormat?.displayUnit || 'none'}
-                              onChange={(e) => {
-                                const newDisplayUnit = e.target.value as any;
-                                // Auto-adjust decimal places based on display unit
-                                let autoDecimals = chartConfig.numberFormat?.decimals || 0;
-                                if (newDisplayUnit !== 'none' && autoDecimals === 0) {
-                                  autoDecimals = 2; // Default to 2 decimal places when using display units
+                          <select
+                            value={chartConfig.numberFormat?.displayUnit || 'none'}
+                            onChange={(e) => {
+                              const newDisplayUnit = e.target.value as any;
+                              setChartConfig(prev => {
+                                const currentDecimals = prev.numberFormat?.decimals ?? 0;
+                                const manualDecimals = prev.numberFormat?.decimalsManuallySet;
+                                let nextDecimals = currentDecimals;
+                                let nextManualFlag = manualDecimals;
+
+                                // Auto-adjust decimal places when no manual override is present
+                                if (newDisplayUnit !== 'none' && !manualDecimals && currentDecimals === 0) {
+                                  nextDecimals = 2; // Default to 2 decimal places when scaling units
+                                  nextManualFlag = false;
                                 }
 
-                                setChartConfig(prev => ({
+                                return {
                                   ...prev,
                                   numberFormat: {
                                     ...prev.numberFormat,
                                     displayUnit: newDisplayUnit,
-                                    decimals: autoDecimals
+                                    decimals: nextDecimals,
+                                    decimalsManuallySet: nextManualFlag
                                   }
-                                }));
-                              }}
-                              style={{
-                                width: '100%',
+                                };
+                              });
+                            }}
+                            style={{
+                              width: '100%',
                                 padding: '6px 10px',
                                 border: '1px solid #e5e7eb',
                                 borderRadius: '4px',

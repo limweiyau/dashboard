@@ -19,16 +19,18 @@ const Settings: React.FC<SettingsProps> = ({
   });
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResults, setConnectionResults] = useState<{ [key: string]: { success: boolean; error?: string } }>({});
-  const [hasChanges, setHasChanges] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
 
+  // Auto-save when formData changes
   useEffect(() => {
     const hasChanges = JSON.stringify(formData) !== JSON.stringify({
       ...settings,
       selectedModels: settings.selectedModels || { gemini: 'gemini-2.5-flash' }
     });
-    setHasChanges(hasChanges);
-  }, [formData, settings]);
+    if (hasChanges) {
+      onSettingsChange(formData);
+    }
+  }, [formData, settings, onSettingsChange]);
 
   const handleApiKeyChange = (provider: string, apiKey: string) => {
     const updatedFormData = {
@@ -43,12 +45,17 @@ const Settings: React.FC<SettingsProps> = ({
       }
     };
     setFormData(updatedFormData);
-    
+
     setConnectionResults(prev => {
       const newResults = { ...prev };
       delete newResults[provider];
       return newResults;
     });
+
+    // Auto-test connection when API key is entered
+    if (apiKey.trim()) {
+      setTimeout(() => handleTestConnection(provider), 300);
+    }
   };
 
   const handleModelChange = (provider: string, model: string) => {
@@ -60,6 +67,11 @@ const Settings: React.FC<SettingsProps> = ({
       }
     };
     setFormData(updatedFormData);
+
+    // Auto-test connection when model changes
+    if (formData.apiKeys[provider]) {
+      setTimeout(() => handleTestConnection(provider), 300);
+    }
   };
 
 
@@ -110,19 +122,6 @@ const Settings: React.FC<SettingsProps> = ({
     }
   };
 
-  const handleSave = () => {
-    onSettingsChange(formData);
-    setHasChanges(false);
-  };
-
-  const handleReset = () => {
-    setFormData({
-      ...settings,
-      selectedModels: settings.selectedModels || { gemini: 'gemini-2.5-flash' }
-    });
-    setConnectionResults({});
-    setHasChanges(false);
-  };
 
   const selectedModel = GEMINI_MODELS.find(m => m.name === (formData.selectedModels?.gemini || 'gemini-2.5-flash'));
 
@@ -175,35 +174,15 @@ const Settings: React.FC<SettingsProps> = ({
             </p>
           </div>
           
-          <div className="d-flex gap-3">
-            {hasChanges && (
-              <button 
-                className="btn"
-                onClick={handleReset}
-                style={{
-                  background: '#f3f4f6',
-                  color: '#374151',
-                  border: '1px solid #d1d5db',
-                  fontWeight: '500'
-                }}
-              >
-                Reset Changes
-              </button>
-            )}
-            <button 
-              className="btn"
-              onClick={handleSave}
-              disabled={!hasChanges}
-              style={{
-                background: hasChanges ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e5e7eb',
-                color: hasChanges ? 'white' : '#9ca3af',
-                border: 'none',
-                fontWeight: '600',
-                padding: '12px 24px'
-              }}
-            >
-              Save Settings
-            </button>
+          <div style={{
+            padding: '8px 16px',
+            background: '#dcfce7',
+            color: '#166534',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}>
+            ✓ Auto-saving enabled
           </div>
         </div>
       </div>
@@ -319,32 +298,32 @@ const Settings: React.FC<SettingsProps> = ({
                   }}
                   title={showApiKey ? 'Hide API key' : 'Show API key'}
                 >
-                  {showApiKey ? '👁️' : '🙈'}
+                  {showApiKey ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
+                    </svg>
+                  )}
                 </button>
               </div>
-              <button
-                className="btn"
-                onClick={() => handleTestConnection('gemini')}
-                disabled={testingConnection || !formData.apiKeys.gemini}
-                style={{
-                  background: testingConnection ? '#e5e7eb' : '#10b981',
-                  color: testingConnection ? '#9ca3af' : 'white',
-                  border: 'none',
+              {testingConnection && (
+                <div style={{
                   padding: '12px 20px',
+                  background: '#e5e7eb',
+                  color: '#6b7280',
+                  borderRadius: '8px',
                   fontWeight: '500',
-                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
                   minWidth: '140px'
-                }}
-              >
-                {testingConnection ? (
-                  <>
-                    <div className="spinner" style={{ marginRight: '8px' }}></div>
-                    Testing...
-                  </>
-                ) : (
-                  '🔌 Test Connection'
-                )}
-              </button>
+                }}>
+                  <div className="spinner" style={{ marginRight: '8px' }}></div>
+                  Testing...
+                </div>
+              )}
             </div>
             </form>
             
@@ -485,25 +464,6 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
 
-      {/* Floating Save Notification */}
-      {hasChanges && (
-        <div style={{ 
-          position: 'fixed', 
-          bottom: '24px', 
-          right: '24px', 
-          padding: '16px 24px',
-          background: 'white',
-          border: '2px solid #fbbf24',
-          borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-          fontSize: '14px',
-          fontWeight: '500',
-          color: '#92400e',
-          zIndex: 1000
-        }}>
-          ⚠️ You have unsaved changes
-        </div>
-      )}
       </div>
     </div>
   );

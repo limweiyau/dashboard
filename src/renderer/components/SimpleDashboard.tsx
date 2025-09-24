@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Project, ProjectData, Chart, Dashboard, Settings, DateRange } from '../types';
 import { ChartConfiguration, ChartData } from '../types/charts';
+import { safeNumber, roundToMaxDecimals } from '../utils/numberUtils';
 import ChartBuilder from './charts/ChartBuilder';
 import ChartRenderer from './charts/ChartRenderer';
 import DataImport from './DataImport';
@@ -352,6 +353,33 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       return null;
     }
 
+    const aggregateValues = (
+      values: number[],
+      aggregation: ChartConfiguration['aggregation'] = config.aggregation
+    ): number => {
+      if (!values || values.length === 0) {
+        return 0;
+      }
+
+      const method = aggregation || 'sum';
+      switch (method) {
+        case 'sum':
+          return roundToMaxDecimals(values.reduce((sum, val) => sum + val, 0));
+        case 'average':
+          return roundToMaxDecimals(values.reduce((sum, val) => sum + val, 0) / values.length);
+        case 'count':
+          return values.length;
+        case 'min':
+          return roundToMaxDecimals(Math.min(...values));
+        case 'max':
+          return roundToMaxDecimals(Math.max(...values));
+        case 'none':
+          return roundToMaxDecimals(values[0] ?? 0);
+        default:
+          return roundToMaxDecimals(values.reduce((sum, val) => sum + val, 0));
+      }
+    };
+
     try {
       if (config.templateId === 'pie-chart') {
         if (!config.categoryField || !config.valueField) {
@@ -361,7 +389,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         const categoryMap = new Map<string, number[]>();
         sourceData.forEach(row => {
           const category = String(row[config.categoryField!] || 'Unknown');
-          const value = Number(row[config.valueField!]) || 0;
+          const value = safeNumber(row[config.valueField!]);
 
           if (!categoryMap.has(category)) {
             categoryMap.set(category, []);
@@ -371,28 +399,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
         const categoryData: Record<string, number> = {};
         categoryMap.forEach((values, category) => {
-          switch (config.aggregation) {
-            case 'sum':
-              categoryData[category] = values.reduce((sum, val) => sum + val, 0);
-              break;
-            case 'average':
-              categoryData[category] = values.reduce((sum, val) => sum + val, 0) / values.length;
-              break;
-            case 'count':
-              categoryData[category] = values.length;
-              break;
-            case 'min':
-              categoryData[category] = Math.min(...values);
-              break;
-            case 'max':
-              categoryData[category] = Math.max(...values);
-              break;
-            case 'none':
-              categoryData[category] = values[0] || 0;
-              break;
-            default:
-              categoryData[category] = values.reduce((sum, val) => sum + val, 0);
-          }
+          categoryData[category] = aggregateValues(values);
         });
 
         return {
@@ -411,8 +418,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           const xField = config.xAxisField!;
           const yField = Array.isArray(config.yAxisField) ? config.yAxisField[0] : config.yAxisField;
           return {
-            x: Number(row[xField]) || 0,
-            y: Number(row[yField]) || 0
+            x: safeNumber(row[xField]),
+            y: safeNumber(row[yField])
           };
         });
 
@@ -443,24 +450,9 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
               if (matchingRows.length > 0) {
                 const yField = Array.isArray(config.yAxisField) ? config.yAxisField[0] : config.yAxisField;
-                const values = matchingRows.map(row => Number(row[yField!]) || 0);
+                const values = matchingRows.map(row => safeNumber(row[yField!]));
 
-                switch (config.aggregation) {
-                  case 'sum':
-                    return values.reduce((sum, val) => sum + val, 0);
-                  case 'average':
-                    return values.reduce((sum, val) => sum + val, 0) / values.length;
-                  case 'count':
-                    return values.length;
-                  case 'min':
-                    return Math.min(...values);
-                  case 'max':
-                    return Math.max(...values);
-                  case 'none':
-                    return values[0] || 0;
-                  default:
-                    return values.reduce((sum, val) => sum + val, 0);
-                }
+                return aggregateValues(values);
               }
               return 0;
             });
@@ -480,7 +472,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           sourceData.forEach(row => {
             const xValue = String(row[config.xAxisField!] || 'Unknown');
             const yField = Array.isArray(config.yAxisField) ? config.yAxisField[0] : config.yAxisField;
-            const yValue = Number(row[yField]) || 0;
+            const yValue = safeNumber(row[yField]);
 
             if (!groupedData[xValue]) groupedData[xValue] = [];
             groupedData[xValue].push(yValue);
@@ -490,22 +482,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           const data = labels.map(label => {
             const values = groupedData[label];
 
-            switch (config.aggregation) {
-              case 'sum':
-                return values.reduce((sum, val) => sum + val, 0);
-              case 'average':
-                return values.reduce((sum, val) => sum + val, 0) / values.length;
-              case 'count':
-                return values.length;
-              case 'min':
-                return Math.min(...values);
-              case 'max':
-                return Math.max(...values);
-              case 'none':
-                return values[0] || 0;
-              default:
-                return values.reduce((sum, val) => sum + val, 0);
-            }
+            return aggregateValues(values);
           });
 
           return {

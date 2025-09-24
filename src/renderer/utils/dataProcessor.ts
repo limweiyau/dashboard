@@ -1,10 +1,28 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { ColumnInfo } from '../types';
+import { roundToMaxDecimals } from './numberUtils';
 
 export interface ProcessedData {
   data: any[];
   columns: ColumnInfo[];
+}
+
+// Helper function to clean numeric values in data objects
+function cleanNumericData(data: any[]): any[] {
+  return data.map(row => {
+    if (!row || typeof row !== 'object') return row;
+
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (typeof value === 'number' && !isNaN(value)) {
+        cleaned[key] = roundToMaxDecimals(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+    return cleaned;
+  });
 }
 
 export function processCSV(csvContent: string): Promise<ProcessedData> {
@@ -19,9 +37,10 @@ export function processCSV(csvContent: string): Promise<ProcessedData> {
           return;
         }
 
-        const data = results.data as any[];
+        const rawData = results.data as any[];
+        const data = cleanNumericData(rawData);
         const columns = inferColumnTypes(data);
-        
+
         resolve({ data, columns });
       },
       error: (error: any) => {
@@ -58,9 +77,10 @@ export function processExcel(buffer: ArrayBuffer): ProcessedData {
     return obj;
   }).filter(row => Object.values(row).some(value => value !== null && value !== ''));
 
-  const columns = inferColumnTypes(data);
-  
-  return { data, columns };
+  const cleanedData = cleanNumericData(data);
+  const columns = inferColumnTypes(cleanedData);
+
+  return { data: cleanedData, columns };
 }
 
 export function processJSON(jsonContent: string): ProcessedData {
@@ -87,9 +107,10 @@ export function processJSON(jsonContent: string): ProcessedData {
       throw new Error('No data found in JSON');
     }
 
-    const columns = inferColumnTypes(data);
-    
-    return { data, columns };
+    const cleanedData = cleanNumericData(data);
+    const columns = inferColumnTypes(cleanedData);
+
+    return { data: cleanedData, columns };
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new Error('Invalid JSON format');

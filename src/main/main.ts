@@ -23,7 +23,6 @@ async function createWindow(): Promise<void> {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    titleBarStyle: 'hiddenInset',
     show: false,
   });
 

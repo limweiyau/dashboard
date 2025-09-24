@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import { ChartConfiguration, ChartData } from '../../types/charts';
+import { roundToMaxDecimals } from '../../utils/numberUtils';
 import { COLOR_SCHEMES } from './chartTemplates';
 
 // Helper function for compatibility with existing code
@@ -10,9 +11,10 @@ function formatNumber(value: number, format?: ChartConfiguration['numberFormat']
 
 // Excel-style number formatting utility
 function formatNumberValue(value: number, format: ChartConfiguration['numberFormat']): string {
-  if (!format || value === undefined || value === null) return String(value);
+  if (!format || value === undefined || value === null) return String(roundToMaxDecimals(value));
 
-  let formattedValue = value;
+  // Always round input to max 3 decimal places to prevent floating point errors
+  let formattedValue = roundToMaxDecimals(value);
   let unitSuffix = '';
 
   // Handle display units first
@@ -40,8 +42,9 @@ function formatNumberValue(value: number, format: ChartConfiguration['numberForm
   // Handle decimals and thousands separators together
   let result: string;
 
-  // Auto-adjust decimal places for display units if needed
-  let effectiveDecimals = format.decimals !== undefined ? format.decimals : 2;
+  // Auto-adjust decimal places for display units if needed, max 3 decimals
+  let effectiveDecimals = format.decimals !== undefined ? Math.min(format.decimals, 3) : 2;
+  const decimalsConfigured = format.decimals !== undefined;
 
   // If display unit is applied and decimals is 0, but result has meaningful decimals, auto-adjust
   if (format.displayUnit && format.displayUnit !== 'none' && format.decimals === 0) {
@@ -54,16 +57,19 @@ function formatNumberValue(value: number, format: ChartConfiguration['numberForm
     }
   }
 
+  const roundedDisplayValue = roundToMaxDecimals(formattedValue);
+
   if (format.thousands) {
     // Use toLocaleString with proper decimal places option
-    result = formattedValue.toLocaleString(undefined, {
-      minimumFractionDigits: effectiveDecimals,
-      maximumFractionDigits: effectiveDecimals
+    result = roundedDisplayValue.toLocaleString(undefined, {
+      minimumFractionDigits: decimalsConfigured ? effectiveDecimals : 0,
+      maximumFractionDigits: decimalsConfigured ? effectiveDecimals : 3
     });
   } else {
-    // Handle decimals only
-    formattedValue = Number(formattedValue.toFixed(effectiveDecimals));
-    result = String(formattedValue);
+    // Handle decimals only, preserving trailing zeros when decimals are explicitly set
+    result = decimalsConfigured
+      ? roundedDisplayValue.toFixed(effectiveDecimals)
+      : String(roundedDisplayValue);
   }
 
   // Handle negative numbers

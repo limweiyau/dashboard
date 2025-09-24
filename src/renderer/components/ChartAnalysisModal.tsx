@@ -32,10 +32,41 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
 
   const config = chart.config as ChartConfiguration;
 
-  // Use exact same dimensions as Your Charts for 1:1 replica
+  // Use exact same dimensions calculation as Your Charts for true 1:1 replica
+  const getChartDisplayConfig = (chartType: string, templateId?: string) => {
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const type = (templateId || chartType || '').toLowerCase();
+    const isCompactChart = ['pie', 'donut', 'gauge', 'circle'].some(keyword => type.includes(keyword));
+
+    const columns = viewportWidth >= 880 ? 2 : 1;
+    const horizontalPadding = 48;
+    const gap = 20;
+    const availableWidth = viewportWidth - horizontalPadding - gap * (columns - 1);
+    const targetCardWidth = Math.floor(availableWidth / Math.max(columns, 1));
+    const fullRowWidth = columns > 1 ? availableWidth : targetCardWidth;
+
+    const minWidthForWideChart = Math.max(640, Math.round(viewportWidth * 0.55));
+    const builderPreviewWidth = Math.min(
+      Math.max((viewportWidth * 0.6) - 40, 320),
+      viewportWidth - 200
+    );
+
+    const previewWidth = Math.min(Math.max(builderPreviewWidth, minWidthForWideChart), fullRowWidth - 40);
+    const chartWidth = Math.round(previewWidth);
+    const baseHeight = Math.max(Math.round(chartWidth * 9 / 16), 480);
+    const chartHeight = baseHeight;
+
+    return {
+      isCompact: isCompactChart,
+      chartWidth,
+      chartHeight
+    };
+  };
+
+  const chartConfig = getChartDisplayConfig(chart.type, config.templateId);
   const dimensions = {
-    width: config.chartWidth || 640,
-    height: config.chartHeight || 480
+    width: chartConfig.chartWidth,
+    height: chartConfig.chartHeight
   };
 
   return (
@@ -156,8 +187,9 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
         }}>
           {/* Chart Section */}
           <div style={{
-            width: '55%',
-            padding: '8px',
+            minWidth: `${dimensions.width + 40}px`, // Chart width + padding
+            flexShrink: 0,
+            padding: '20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -198,7 +230,8 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
 
           {/* Right Panel */}
           <div style={{
-            width: '45%',
+            flex: 1,
+            minWidth: '400px',
             display: 'flex',
             flexDirection: 'column',
             background: '#f8fafc',

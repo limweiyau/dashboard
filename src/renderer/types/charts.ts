@@ -73,6 +73,7 @@ export interface ChartConfiguration {
     prefix?: string;
     suffix?: string;
     decimals?: number;
+    decimalsManuallySet?: boolean;
     thousands?: boolean;
     abbreviateMillions?: boolean;
     displayUnit?: 'none' | 'hundreds' | 'thousands' | 'millions' | 'billions';
