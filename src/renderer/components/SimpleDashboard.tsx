@@ -58,6 +58,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   const [showDateRangeManager, setShowDateRangeManager] = useState(false);
   const chartCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const chartContentRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const chartVisualizationRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const chartThumbnailCache = useRef<Record<string, { dataUrl: string; capturedAt: number }>>({});
   const [chartThumbnails, setChartThumbnails] = useState<Record<string, { dataUrl: string; capturedAt: number }>>({});
   const [showExportFlow, setShowExportFlow] = useState(false);
@@ -124,7 +125,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         return chartThumbnailCache.current[chartId].dataUrl;
       }
 
-      const element = chartContentRefs.current[chartId] || chartCardRefs.current[chartId];
+      const element = chartVisualizationRefs.current[chartId] || chartContentRefs.current[chartId] || chartCardRefs.current[chartId];
       if (!element) {
         return null;
       }
@@ -1654,6 +1655,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                       >
                           {chartData ? (
                             <ChartRenderer
+                              ref={el => {
+                                if (el) {
+                                  chartVisualizationRefs.current[chart.id] = el;
+                                } else {
+                                  delete chartVisualizationRefs.current[chart.id];
+                                }
+                              }}
                               config={config}
                               data={chartData}
                               width={chartConfig.chartWidth}

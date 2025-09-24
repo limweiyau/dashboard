@@ -65,7 +65,7 @@ const disabledCheckboxLabelStyle: React.CSSProperties = {
 };
 
 const chartsPerPage = 1;
-const pageDimensions = { width: 700, height: 1020 };
+const pageDimensions = { width: 600, height: 900 };
 
 type TocEntry = {
   title: string;
@@ -318,21 +318,48 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             {page.charts.map((chart, index) => {
               const thumbnail = chartThumbnails[chart.id];
               const analysis = analysisContentByChart[chart.id]?.trim();
-              const paragraphs = analysis ? analysis.split(/\n+/).filter(Boolean) : [];
+              // Split on double line breaks, single line breaks, or sentence patterns that indicate new paragraphs
+              let paragraphs: string[] = [];
+              if (analysis) {
+                // First try splitting on double line breaks
+                let splitParagraphs = analysis.split(/\n\n+/).filter(Boolean);
+
+                // If we only got one paragraph, try splitting on single line breaks
+                if (splitParagraphs.length === 1) {
+                  splitParagraphs = analysis.split(/\n+/).filter(Boolean);
+                }
+
+                // If we still only have one paragraph, try to split on sentence patterns
+                if (splitParagraphs.length === 1) {
+                  // Look for patterns that indicate start of insights/recommendations
+                  const insightStarters = /\b(To improve|To increase|Focus on|Consider|Implement|Investigate|Analyze the|Target|Address|Recommend)/i;
+                  const match = analysis.match(insightStarters);
+                  if (match && match.index) {
+                    const analysisText = analysis.substring(0, match.index).trim();
+                    const insightsText = analysis.substring(match.index).trim();
+                    splitParagraphs = [analysisText, insightsText].filter(Boolean);
+                  }
+                }
+
+                paragraphs = splitParagraphs;
+              }
               const chartPosition = page.startIndex + index + 1;
               const bulletLines: string[] = [];
               const narrativeParagraphs: string[] = [];
 
-              paragraphs.forEach(paragraph => {
+              // Simple parsing: first paragraph = analysis, second paragraph = insights
+              paragraphs.forEach((paragraph, index) => {
                 const original = paragraph.trim();
                 const normalized = normalizeInsightText(original);
                 if (!normalized) {
                   return;
                 }
-                if (/^[•\-\u2022]/.test(original)) {
-                  bulletLines.push(normalized);
-                } else {
+
+                // First paragraph goes to analysis, second and beyond go to insights
+                if (index === 0) {
                   narrativeParagraphs.push(normalized);
+                } else {
+                  bulletLines.push(normalized);
                 }
               });
 
@@ -410,71 +437,118 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 
                   {config.includeAnalysis && (
                     <div style={{
-                      borderRadius: '18px',
+                      borderRadius: '16px',
                       border: `1px solid ${primaryColor}`,
-                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.03) 100%)',
-                      padding: '24px',
+                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%)',
+                      padding: '20px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '16px'
+                      gap: '14px'
                     }}>
-                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                        AI Commentary
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                        🤖 AI Commentary
                       </div>
                       {paragraphs.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          {/* Analysis Block */}
                           <div style={{
-                            background: 'rgba(255, 255, 255, 0.75)',
-                            borderRadius: '14px',
-                            border: '1px solid rgba(148, 163, 184, 0.3)',
-                            padding: '16px',
+                            background: 'rgba(59, 130, 246, 0.08)',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(59, 130, 246, 0.2)',
+                            padding: '14px',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '12px'
+                            gap: '10px'
                           }}>
-                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
-                              Insights
-                            </div>
-                            {bulletLines.length > 0 ? (
-                              <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', color: '#1f2937', lineHeight: 1.5 }}>
-                                {bulletLines.map((line, idx) => (
-                                  <li key={idx}>{line}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <div style={{ fontSize: '14px', color: '#64748b' }}>
-                                No bullet-pointed insights provided yet. Add highlights to surface them here.
-                              </div>
-                            )}
-                          </div>
-
-                          <div style={{
-                            background: 'rgba(255, 255, 255, 0.88)',
-                            borderRadius: '14px',
-                            border: '1px solid rgba(148, 163, 184, 0.25)',
-                            padding: '16px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px'
-                          }}>
-                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
-                              Analysis
+                            <div style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: '#0f172a',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}>
+                              📊 Detailed Analysis
                             </div>
                             {narrativeParagraphs.length > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: '#1f2937', lineHeight: 1.6 }}>
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px',
+                                fontSize: '13px',
+                                color: '#1f2937',
+                                lineHeight: 1.6
+                              }}>
                                 {narrativeParagraphs.map((text, idx) => (
                                   <p key={idx} style={{ margin: 0 }}>{text}</p>
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ fontSize: '14px', color: '#64748b' }}>
-                                Narrative commentary was not detected for this chart. Add a descriptive paragraph to enrich the report.
+                              <div style={{
+                                fontSize: '13px',
+                                color: '#64748b',
+                                fontStyle: 'italic'
+                              }}>
+                                No detailed analysis available for this chart.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Insights Block */}
+                          <div style={{
+                            background: 'rgba(34, 197, 94, 0.08)',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(34, 197, 94, 0.2)',
+                            padding: '14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px'
+                          }}>
+                            <div style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: '#0f172a',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}>
+                              💡 Key Insights
+                            </div>
+                            {bulletLines.length > 0 ? (
+                              <div style={{
+                                margin: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px',
+                                fontSize: '13px',
+                                color: '#1f2937',
+                                lineHeight: 1.6
+                              }}>
+                                {bulletLines.map((line, idx) => (
+                                  <p key={idx} style={{ margin: 0 }}>{line}</p>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{
+                                fontSize: '13px',
+                                color: '#64748b',
+                                fontStyle: 'italic'
+                              }}>
+                                No key insights available for this chart.
                               </div>
                             )}
                           </div>
                         </div>
                       ) : (
-                        <div style={{ fontSize: '14px', color: '#64748b' }}>
+                        <div style={{
+                          fontSize: '13px',
+                          color: '#64748b',
+                          textAlign: 'center',
+                          padding: '12px',
+                          background: 'rgba(148, 163, 184, 0.1)',
+                          borderRadius: '10px',
+                          border: '1px dashed rgba(148, 163, 184, 0.3)'
+                        }}>
                           No AI analysis has been recorded for this chart yet. Generate insights to include commentary in the report.
                         </div>
                       )}
@@ -554,13 +628,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
           flex: 1
         }}>
           <div style={{
-            position: 'sticky',
-            top: '28px',
-            alignSelf: 'flex-start',
-            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            height: 'calc(94vh - 200px)'
+            minHeight: 0,
+            height: 'calc(94vh - 200px)',
+            maxHeight: 'calc(94vh - 200px)'
           }}>
             <div style={{
               background: 'white',
@@ -589,17 +661,21 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 minHeight: 0,
-                flex: 1
+                flex: 1,
+                overflow: 'hidden'
               }}>
                 <div
                   style={{
                     flex: 1,
                     overflowY: 'auto',
-                    padding: '24px 40px 36px',
+                    overflowX: 'hidden',
+                    padding: '24px 20px 36px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '40px'
+                    gap: '32px',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#94a3b8 transparent'
                   }}
                 >
                   {pages.map((page, index) => (
@@ -614,7 +690,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         boxShadow: '0 14px 32px rgba(15, 23, 42, 0.12)',
                         display: 'flex',
                         flexDirection: 'column',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        flexShrink: 0
                       }}
                     >
                       <div style={{
@@ -652,7 +729,17 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', paddingRight: '8px', minHeight: 0 }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            overflowY: 'auto',
+            paddingRight: '8px',
+            minHeight: 0,
+            maxHeight: 'calc(94vh - 200px)',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#94a3b8 transparent'
+          }}>
             <div style={cardContainerStyle}>
               <div style={cardTitleStyle}>Report Settings</div>
               <label style={fieldLabelStyle} htmlFor="report-title-input">Report Title</label>

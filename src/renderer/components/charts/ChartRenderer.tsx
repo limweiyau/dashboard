@@ -236,7 +236,7 @@ interface ChartRendererProps {
   tooltipZIndex?: number; // Z-index for tooltips (useful for modals)
 }
 
-const ChartRenderer: React.FC<ChartRendererProps> = ({
+const ChartRenderer = React.forwardRef<HTMLDivElement, ChartRendererProps>(({
   config,
   data,
   width = 600,
@@ -244,7 +244,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
   forceDisableAnimation = false,
   scaleFactor = 1.0,
   tooltipZIndex = 1000
-}) => {
+}, ref) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const svgHeight = Math.max(height - 50, 0); // Reserve space for title/actions without forcing re-renders
 
@@ -405,6 +405,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
 
   return (
     <div
+      ref={ref}
       className="chart-container"
       style={{
         background: 'rgba(255, 255, 255, 0.95)',
@@ -438,7 +439,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({
       {titleVertical === 'bottom' && renderTitle()}
     </div>
   );
-};
+});
 
 // Helper function to scale font sizes for different chart sizes
 const getScaledFontSize = (configSize: number | undefined, defaultSize: number, chartWidth: number, globalScaleFactor: number = 1.0): number => {
