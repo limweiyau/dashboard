@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Project, ProjectData, Chart, Dashboard, Settings, DateRange } from '../types';
 import { ChartConfiguration, ChartData } from '../types/charts';
 import { safeNumber, roundToMaxDecimals } from '../utils/numberUtils';
 import ChartBuilder from './charts/ChartBuilder';
 import ChartRenderer from './charts/ChartRenderer';
+import html2canvas from 'html2canvas';
 import DataImport from './DataImport';
 import ChartAnalysisModal from './ChartAnalysisModal';
+import ChartSelectionModal from './export/ChartSelectionModal';
+import ExportConfigurationModal from './export/ExportConfigurationModal';
+import { ExportStage, ExportReportConfig } from './export/types';
 import { applySlicersToData } from '../utils/slicerUtils';
 import ChartSlicerControls from './ChartSlicerControls';
 import DateRangeManager from './DateRangeManager';
@@ -21,6 +25,7 @@ type ChartAnalysisEntry = {
 
 // New nested structure: chartId -> filterFingerprint -> analysis
 type ChartAnalysisMap = Record<string, Record<string, ChartAnalysisEntry>>;
+
 
 interface SimpleDashboardProps {
   project: Project;
@@ -51,6 +56,125 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     typeof window !== 'undefined' ? window.innerWidth : 1200
   );
   const [showDateRangeManager, setShowDateRangeManager] = useState(false);
+  const chartCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const chartContentRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const chartThumbnailCache = useRef<Record<string, { dataUrl: string; capturedAt: number }>>({});
+  const [chartThumbnails, setChartThumbnails] = useState<Record<string, { dataUrl: string; capturedAt: number }>>({});
+  const [showExportFlow, setShowExportFlow] = useState(false);
+  const [exportStage, setExportStage] = useState<ExportStage>('selection');
+  const [selectedExportChartIds, setSelectedExportChartIds] = useState<string[]>([]);
+  const chartsWithAnalysisSet = useMemo(() => {
+    const set = new Set<string>();
+    Object.entries(chartAnalyses).forEach(([chartId, analysisMap]) => {
+      if (!analysisMap) {
+        return;
+      }
+      const hasContent = Object.values(analysisMap).some(entry => entry?.content);
+      if (hasContent) {
+        set.add(chartId);
+      }
+    });
+    return set;
+  }, [chartAnalyses]);
+  const [exportConfig, setExportConfig] = useState<ExportReportConfig>(() => ({
+    reportTitle: `${project.name} Analytics Report`,
+    description: 'Analysis and insights for your charts',
+    reportDate: new Date().toISOString().split('T')[0],
+    includeCharts: true,
+    includeAnalysis: false,
+    analysisSummary: 'No chart analysis is available yet',
+    orientation: 'portrait',
+    pageSize: 'A4',
+    companyName: 'Your Company',
+    logoFile: null,
+    logoDataUrl: null,
+    logoFileName: null,
+    primaryColor: '#3b82f6',
+    headerText: 'Data Analysis Report',
+    footerText: 'Confidential'
+  }));
+  const [isCapturingExportAssets, setIsCapturingExportAssets] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const selectedExportCharts = useMemo(() => {
+    const selectedSet = new Set(selectedExportChartIds);
+    return projectData.charts.filter(chart => selectedSet.has(chart.id));
+  }, [projectData.charts, selectedExportChartIds]);
+  const selectedChartThumbnailsMap = useMemo(() => {
+    return selectedExportChartIds.reduce((acc, chartId) => {
+      const thumbnail = chartThumbnails[chartId];
+      if (thumbnail) {
+        acc[chartId] = thumbnail;
+      }
+      return acc;
+    }, {} as Record<string, { dataUrl: string; capturedAt: number }>);
+  }, [selectedExportChartIds, chartThumbnails]);
+  const analysisAvailableCount = useMemo(() => {
+    return selectedExportChartIds.reduce((count, chartId) => (
+      chartsWithAnalysisSet.has(chartId) ? count + 1 : count
+    ), 0);
+  }, [selectedExportChartIds, chartsWithAnalysisSet]);
+  const captureChartThumbnail = useCallback(
+    async (
+      chartId: string,
+      options: { force?: boolean; scale?: number } = {}
+    ): Promise<string | null> => {
+      const { force = false, scale = 2 } = options;
+
+      if (!force && chartThumbnailCache.current[chartId]) {
+        return chartThumbnailCache.current[chartId].dataUrl;
+      }
+
+      const element = chartContentRefs.current[chartId] || chartCardRefs.current[chartId];
+      if (!element) {
+        return null;
+      }
+
+      try {
+        const canvas = await html2canvas(element, {
+          backgroundColor: '#ffffff',
+          scale,
+          useCORS: true,
+          windowWidth: element.scrollWidth,
+          windowHeight: element.scrollHeight,
+          logging: false
+        });
+        const dataUrl = canvas.toDataURL('image/png');
+        const thumbnail = { dataUrl, capturedAt: Date.now() };
+        chartThumbnailCache.current[chartId] = thumbnail;
+        setChartThumbnails(prev => ({
+          ...prev,
+          [chartId]: thumbnail
+        }));
+        return dataUrl;
+      } catch (error) {
+        console.error('Failed to capture chart screenshot', error);
+        return null;
+      }
+    },
+    []
+  );
+
+  const captureChartThumbnails = useCallback(
+    async (
+      chartIds: string[],
+      options: { force?: boolean; scale?: number } = {}
+    ): Promise<Record<string, string>> => {
+      const results = await Promise.all(
+        chartIds.map(async chartId => ({
+          chartId,
+          dataUrl: await captureChartThumbnail(chartId, options)
+        }))
+      );
+
+      return results.reduce((acc, result) => {
+        if (result.dataUrl) {
+          acc[result.chartId] = result.dataUrl;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+    },
+    [captureChartThumbnail]
+  );
 
   // Modal analysis states
   const [modalChart, setModalChart] = useState<Chart | null>(null);
@@ -271,6 +395,17 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     return Object.values(chartData).some(analysis => analysis?.content);
   };
+
+  const selectedChartAnalyses = useMemo(() => {
+    const map: Record<string, string> = {};
+    selectedExportCharts.forEach(chart => {
+      const analysis = getCurrentAnalysis(chart);
+      if (analysis?.content) {
+        map[chart.id] = analysis.content;
+      }
+    });
+    return map;
+  }, [selectedExportCharts, chartAnalyses, getCurrentAnalysis]);
 
   // Clear analysis when filters change - No longer needed since we persist all filter combinations
   const clearInvalidAnalyses = () => {
@@ -638,6 +773,149 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         charts: projectData.charts.filter(c => c.id !== chartId)
       });
     }
+  };
+
+  const handleOpenExportFlow = () => {
+    const chartIds = projectData.charts.map(chart => chart.id);
+    setSelectedExportChartIds(chartIds);
+    setExportStage('selection');
+    setShowExportFlow(true);
+    setExportError(null);
+    setIsCapturingExportAssets(false);
+  };
+
+  const handleCloseExportFlow = () => {
+    setShowExportFlow(false);
+    setExportStage('selection');
+    setIsCapturingExportAssets(false);
+  };
+
+  const handleToggleExportChart = (chartId: string) => {
+    setSelectedExportChartIds(prev => (
+      prev.includes(chartId)
+        ? prev.filter(id => id !== chartId)
+        : [...prev, chartId]
+    ));
+  };
+
+  const handleExportSelectAll = () => {
+    setSelectedExportChartIds(projectData.charts.map(chart => chart.id));
+  };
+
+  const handleExportClearAll = () => {
+    setSelectedExportChartIds([]);
+  };
+
+  const handleExportSelectionContinue = async () => {
+    if (selectedExportChartIds.length === 0) {
+      return;
+    }
+
+    const totalSelected = selectedExportChartIds.length;
+    const analysisSummary = `${analysisAvailableCount} of ${totalSelected} charts have analysis available`;
+
+    setExportConfig(prev => {
+      const defaultTitle = `${project.name} Analytics Report`;
+      const defaultDescription = `Analysis and insights for ${totalSelected} chart${totalSelected === 1 ? '' : 's'}`;
+      const shouldReplaceDescription =
+        !prev.description ||
+        prev.description === 'Analysis and insights for your charts' ||
+        prev.description.startsWith('Analysis and insights for ');
+      const shouldEnableAnalysisByDefault =
+        analysisAvailableCount > 0 && prev.analysisSummary === 'No chart analysis is available yet';
+      const nextIncludeAnalysis = analysisAvailableCount === 0
+        ? false
+        : shouldEnableAnalysisByDefault
+          ? true
+          : prev.includeAnalysis;
+
+      return {
+        ...prev,
+        reportTitle: prev.reportTitle && prev.reportTitle.trim().length > 0 ? prev.reportTitle : defaultTitle,
+        description: shouldReplaceDescription ? defaultDescription : prev.description,
+        reportDate: prev.reportDate || new Date().toISOString().split('T')[0],
+        includeAnalysis: nextIncludeAnalysis,
+        analysisSummary
+      };
+    });
+
+    setExportStage('config');
+    setIsCapturingExportAssets(true);
+    setExportError(null);
+
+    try {
+      await captureChartThumbnails(selectedExportChartIds, { force: false, scale: 2 });
+    } catch (error) {
+      console.error('Failed to prepare chart previews for export', error);
+      setExportError('Failed to prepare some chart previews. Please ensure charts are visible and try again.');
+    } finally {
+      setIsCapturingExportAssets(false);
+    }
+  };
+
+  useEffect(() => {
+    setSelectedExportChartIds(prev =>
+      prev.filter(id => projectData.charts.some(chart => chart.id === id))
+    );
+  }, [projectData.charts]);
+
+  const handleExportConfigChange = (updates: Partial<ExportReportConfig>) => {
+    setExportConfig(prev => ({
+      ...prev,
+      ...updates
+    }));
+  };
+
+  const handleExportLogoUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string') {
+        setExportConfig(prev => ({
+          ...prev,
+          logoFile: file,
+          logoDataUrl: result,
+          logoFileName: file.name
+        }));
+        setExportError(null);
+      } else {
+        setExportError('Unable to read the selected logo file.');
+      }
+    };
+    reader.onerror = () => {
+      console.error('Failed to read logo file');
+      setExportError('Failed to load the selected logo. Please try a different file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleExportLogoClear = () => {
+    setExportConfig(prev => ({
+      ...prev,
+      logoFile: null,
+      logoDataUrl: null,
+      logoFileName: null
+    }));
+  };
+
+  const handleExportBackToSelection = () => {
+    setExportStage('selection');
+  };
+
+  const handleExportGenerate = () => {
+    const preparedCharts = selectedExportCharts.map(chart => ({
+      id: chart.id,
+      name: chart.name,
+      thumbnail: selectedChartThumbnailsMap[chart.id]?.dataUrl || null,
+      analysis: exportConfig.includeAnalysis ? selectedChartAnalyses[chart.id] || null : null
+    }));
+
+    console.log('Export report payload preview', {
+      config: exportConfig,
+      charts: preparedCharts
+    });
+
+    setExportError('Report generation is not yet implemented. Chart previews are ready for export.');
   };
 
   const handleGenerateAnalysis = async (chart: Chart) => {
@@ -1020,6 +1298,37 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', marginLeft: '12px' }}>
             <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '600' }}>Your Charts</h2>
+            {projectData.charts.length > 0 && (
+              <button
+                onClick={handleOpenExportFlow}
+                style={{
+                  padding: '10px 18px',
+                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 12px 24px rgba(22, 163, 74, 0.25)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 16px 28px rgba(22, 163, 74, 0.32)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 12px 24px rgba(22, 163, 74, 0.25)';
+                }}
+              >
+                <span role="img" aria-label="export report">📄</span>
+                Export Report
+              </button>
+            )}
           </div>
 
           {projectData.charts.length === 0 ? (
@@ -1054,7 +1363,16 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                 const gridSpan = viewportWidth >= 880 ? 'span 2' : 'span 1';
 
                 return (
-                  <div key={chart.id} style={{
+                  <div
+                    key={chart.id}
+                    ref={el => {
+                      if (el) {
+                        chartCardRefs.current[chart.id] = el;
+                      } else {
+                        delete chartCardRefs.current[chart.id];
+                      }
+                    }}
+                    style={{
                     background: '#ffffff',
                     borderRadius: '16px',
                     border: '2px solid #e2e8f0',
@@ -1325,7 +1643,15 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
-                      }}>
+                      }}
+                      ref={el => {
+                        if (el) {
+                          chartContentRefs.current[chart.id] = el;
+                        } else {
+                          delete chartContentRefs.current[chart.id];
+                        }
+                      }}
+                      >
                           {chartData ? (
                             <ChartRenderer
                               config={config}
@@ -1495,6 +1821,38 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             />
           </div>
         </div>
+      )}
+
+      {showExportFlow && exportStage === 'selection' && (
+        <ChartSelectionModal
+          charts={projectData.charts}
+          selectedChartIds={selectedExportChartIds}
+          chartsWithAnalysis={chartsWithAnalysisSet}
+          onToggleChart={handleToggleExportChart}
+          onSelectAll={handleExportSelectAll}
+          onClearAll={handleExportClearAll}
+          onClose={handleCloseExportFlow}
+          onContinue={handleExportSelectionContinue}
+        />
+      )}
+
+      {showExportFlow && exportStage === 'config' && (
+        <ExportConfigurationModal
+          config={exportConfig}
+          charts={selectedExportCharts}
+          chartThumbnails={selectedChartThumbnailsMap}
+          analysisContentByChart={selectedChartAnalyses}
+          analysisAvailableCount={analysisAvailableCount}
+          totalSelectedCount={selectedExportChartIds.length}
+          isCapturingAssets={isCapturingExportAssets}
+          exportError={exportError}
+          onConfigChange={handleExportConfigChange}
+          onLogoUpload={handleExportLogoUpload}
+          onLogoClear={handleExportLogoClear}
+          onBack={handleExportBackToSelection}
+          onCancel={handleCloseExportFlow}
+          onGenerate={handleExportGenerate}
+        />
       )}
 
       {/* Analysis Modal */}
