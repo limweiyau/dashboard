@@ -79,7 +79,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   }, [chartAnalyses]);
   const [exportConfig, setExportConfig] = useState<ExportReportConfig>(() => ({
     reportTitle: `${project.name} Analytics Report`,
-    description: 'Analysis and insights for your charts',
+    description: '',
     reportDate: new Date().toISOString().split('T')[0],
     includeCharts: true,
     includeAnalysis: false,
@@ -817,11 +817,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     setExportConfig(prev => {
       const defaultTitle = `${project.name} Analytics Report`;
-      const defaultDescription = `Analysis and insights for ${totalSelected} chart${totalSelected === 1 ? '' : 's'}`;
-      const shouldReplaceDescription =
-        !prev.description ||
-        prev.description === 'Analysis and insights for your charts' ||
-        prev.description.startsWith('Analysis and insights for ');
       const shouldEnableAnalysisByDefault =
         analysisAvailableCount > 0 && prev.analysisSummary === 'No chart analysis is available yet';
       const nextIncludeAnalysis = analysisAvailableCount === 0
@@ -833,7 +828,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       return {
         ...prev,
         reportTitle: prev.reportTitle && prev.reportTitle.trim().length > 0 ? prev.reportTitle : defaultTitle,
-        description: shouldReplaceDescription ? defaultDescription : prev.description,
+        description: prev.description, // Keep user's description unchanged
         reportDate: prev.reportDate || new Date().toISOString().split('T')[0],
         includeAnalysis: nextIncludeAnalysis,
         analysisSummary

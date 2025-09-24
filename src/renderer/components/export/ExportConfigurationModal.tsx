@@ -152,10 +152,6 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
     onConfigChange({ [field]: value } as Partial<ExportReportConfig>);
   };
 
-  const handleOrientationChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onConfigChange({ orientation: event.target.value as ExportReportConfig['orientation'] });
-  };
-
   const handlePageSizeChange = (event: ChangeEvent<HTMLSelectElement>) => {
     onConfigChange({ pageSize: event.target.value as ExportReportConfig['pageSize'] });
   };
@@ -228,14 +224,16 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               }}>
                 {config.reportTitle || 'Analytics Report'}
               </div>
-              <div style={{
-                fontSize: '18px',
-                lineHeight: 1.6,
-                maxWidth: '70%',
-                opacity: 0.92
-              }}>
-                {config.description || 'An overview of your key data stories and visual insights.'}
-              </div>
+              {config.description && (
+                <div style={{
+                  fontSize: '18px',
+                  lineHeight: 1.6,
+                  maxWidth: '70%',
+                  opacity: 0.92
+                }}>
+                  {config.description}
+                </div>
+              )}
             </div>
 
             <div style={{
@@ -388,9 +386,6 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         <span style={{ width: '8px', height: '8px', borderRadius: '999px', background: primaryColor }}></span>
                         {chart.type || 'Custom Visualization'}
                       </div>
-                    </div>
-                    <div style={{ textAlign: 'right', fontSize: '12px', color: '#64748b' }}>
-                      Updated {chart.updatedAt ? new Date(chart.updatedAt).toLocaleDateString() : '—'}
                     </div>
                   </div>
 
@@ -760,7 +755,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 value={config.description}
                 onChange={handleInputChange('description')}
                 style={textareaStyle}
-                placeholder={`Analysis and insights for ${totalSelectedCount} charts`}
+                placeholder="Enter Description Here..."
               />
 
               <label style={{ ...fieldLabelStyle, marginTop: '12px' }} htmlFor="report-date-input">
@@ -814,30 +809,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 
             <div style={cardContainerStyle}>
               <div style={cardTitleStyle}>Layout Options</div>
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <label style={{ display: 'flex', gap: '8px', fontSize: '13px', color: '#0f172a' }}>
-                  <input
-                    type="radio"
-                    name="report-orientation"
-                    value="portrait"
-                    checked={config.orientation === 'portrait'}
-                    onChange={handleOrientationChange}
-                  />
-                  Portrait
-                </label>
-                <label style={{ display: 'flex', gap: '8px', fontSize: '13px', color: '#0f172a' }}>
-                  <input
-                    type="radio"
-                    name="report-orientation"
-                    value="landscape"
-                    checked={config.orientation === 'landscape'}
-                    onChange={handleOrientationChange}
-                  />
-                  Landscape
-                </label>
-              </div>
 
-              <label style={{ ...fieldLabelStyle, marginTop: '14px' }} htmlFor="page-size-select">
+              <label style={fieldLabelStyle} htmlFor="page-size-select">
                 Page Size
               </label>
               <select
