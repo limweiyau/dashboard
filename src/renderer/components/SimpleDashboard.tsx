@@ -27,6 +27,13 @@ type ChartAnalysisEntry = {
 // New nested structure: chartId -> filterFingerprint -> analysis
 type ChartAnalysisMap = Record<string, Record<string, ChartAnalysisEntry>>;
 
+type StoredExportBranding = {
+  companyName?: string;
+  primaryColor?: string;
+  logoDataUrl?: string | null;
+  logoFileName?: string | null;
+};
+
 
 interface SimpleDashboardProps {
   project: Project;
@@ -51,6 +58,35 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   const [selectedDateRange, setSelectedDateRange] = useState<string | null>(null);
   const [selectedDateRanges, setSelectedDateRanges] = useState<string[]>([]);
   const analysisStorageKey = useMemo(() => `chart-analyses-${project?.id ?? 'default'}`, [project?.id]);
+  const brandingStorageKey = useMemo(
+    () => (project?.id ? `export-branding-${project.id}` : 'export-branding-default'),
+    [project?.id]
+  );
+
+  const readStoredBranding = useCallback((): StoredExportBranding | null => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    try {
+      const raw = window.localStorage.getItem(brandingStorageKey);
+      return raw ? (JSON.parse(raw) as StoredExportBranding) : null;
+    } catch (error) {
+      console.error('Failed to read export branding from storage', error);
+      return null;
+    }
+  }, [brandingStorageKey]);
+
+  const persistBranding = useCallback((branding: StoredExportBranding) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(brandingStorageKey, JSON.stringify(branding));
+    } catch (error) {
+      console.error('Failed to persist export branding', error);
+    }
+  }, [brandingStorageKey]);
+
   const [chartAnalyses, setChartAnalyses] = useState<ChartAnalysisMap>({});
   const [hasRestoredAnalyses, setHasRestoredAnalyses] = useState(false);
   const [editingTableName, setEditingTableName] = useState(false);
@@ -80,24 +116,28 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     });
     return set;
   }, [chartAnalyses]);
-  const [exportConfig, setExportConfig] = useState<ExportReportConfig>(() => ({
-    reportTitle: `${project.name} Analytics Report`,
-    description: '',
-    reportDate: new Date().toISOString().split('T')[0],
-    includeCharts: true,
-    includeAnalysis: false,
-    analysisSummary: 'No chart analysis is available yet',
-    orientation: 'portrait',
-    pageSize: 'A4',
-    companyName: 'Your Company',
-    logoFile: null,
-    logoDataUrl: null,
-    logoFileName: null,
-    primaryColor: '#3b82f6',
-    headerText: 'Data Analysis Report',
-    footerText: 'Confidential',
-    confidentialStatus: 'Confidential'
-  }));
+  const [exportConfig, setExportConfig] = useState<ExportReportConfig>(() => {
+    const storedBranding = readStoredBranding();
+
+    return {
+      reportTitle: 'Title',
+      description: '',
+      reportDate: new Date().toISOString().split('T')[0],
+      includeCharts: true,
+      includeAnalysis: false,
+      analysisSummary: 'No chart analysis is available yet',
+      orientation: 'portrait',
+      pageSize: 'A4',
+      companyName: storedBranding?.companyName ?? 'Your Company',
+      logoFile: null,
+      logoDataUrl: storedBranding?.logoDataUrl ?? null,
+      logoFileName: storedBranding?.logoFileName ?? null,
+      primaryColor: storedBranding?.primaryColor ?? '#3b82f6',
+      headerText: 'Data Analysis Report',
+      footerText: 'Confidential',
+      confidentialStatus: 'Confidential'
+    };
+  });
   const [isCapturingExportAssets, setIsCapturingExportAssets] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const selectedExportCharts = useMemo(() => {
@@ -118,6 +158,20 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       chartsWithAnalysisSet.has(chartId) ? count + 1 : count
     ), 0);
   }, [selectedExportChartIds, chartsWithAnalysisSet]);
+  // Restore persisted branding settings when switching projects.
+  useEffect(() => {
+    const storedBranding = readStoredBranding();
+
+    setExportConfig(prev => ({
+      ...prev,
+      companyName: storedBranding?.companyName ?? 'Your Company',
+      primaryColor: storedBranding?.primaryColor ?? '#3b82f6',
+      logoFile: null,
+      logoDataUrl: storedBranding?.logoDataUrl ?? null,
+      logoFileName: storedBranding?.logoFileName ?? null
+    }));
+  }, [readStoredBranding]);
+
   const captureChartThumbnail = useCallback(
     async (
       chartId: string,
@@ -982,7 +1036,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     const analysisSummary = `${analysisAvailableCount} of ${totalSelected} charts have analysis available`;
 
     setExportConfig(prev => {
-      const defaultTitle = `${project.name} Analytics Report`;
+      const defaultTitle = 'Title';
       const shouldEnableAnalysisByDefault =
         analysisAvailableCount > 0 && prev.analysisSummary === 'No chart analysis is available yet';
       const nextIncludeAnalysis = analysisAvailableCount === 0
@@ -1022,10 +1076,28 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   }, [projectData.charts]);
 
   const handleExportConfigChange = (updates: Partial<ExportReportConfig>) => {
-    setExportConfig(prev => ({
-      ...prev,
-      ...updates
-    }));
+    setExportConfig(prev => {
+      const next = {
+        ...prev,
+        ...updates
+      };
+
+      if (
+        'companyName' in updates ||
+        'primaryColor' in updates ||
+        'logoDataUrl' in updates ||
+        'logoFileName' in updates
+      ) {
+        persistBranding({
+          companyName: next.companyName,
+          primaryColor: next.primaryColor,
+          logoDataUrl: next.logoDataUrl ?? null,
+          logoFileName: next.logoFileName ?? null
+        });
+      }
+
+      return next;
+    });
   };
 
   const handleExportLogoUpload = (file: File) => {
@@ -1033,12 +1105,23 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     reader.onload = () => {
       const result = reader.result;
       if (typeof result === 'string') {
-        setExportConfig(prev => ({
-          ...prev,
-          logoFile: file,
-          logoDataUrl: result,
-          logoFileName: file.name
-        }));
+        setExportConfig(prev => {
+          const next = {
+            ...prev,
+            logoFile: file,
+            logoDataUrl: result,
+            logoFileName: file.name
+          };
+
+          persistBranding({
+            companyName: next.companyName,
+            primaryColor: next.primaryColor,
+            logoDataUrl: next.logoDataUrl ?? null,
+            logoFileName: next.logoFileName ?? null
+          });
+
+          return next;
+        });
         setExportError(null);
       } else {
         setExportError('Unable to read the selected logo file.');
@@ -1052,12 +1135,23 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   };
 
   const handleExportLogoClear = () => {
-    setExportConfig(prev => ({
-      ...prev,
-      logoFile: null,
-      logoDataUrl: null,
-      logoFileName: null
-    }));
+    setExportConfig(prev => {
+      const next = {
+        ...prev,
+        logoFile: null,
+        logoDataUrl: null,
+        logoFileName: null
+      };
+
+      persistBranding({
+        companyName: next.companyName,
+        primaryColor: next.primaryColor,
+        logoDataUrl: null,
+        logoFileName: null
+      });
+
+      return next;
+    });
   };
 
   const handleExportBackToSelection = () => {

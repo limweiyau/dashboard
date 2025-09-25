@@ -209,12 +209,13 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               justifyContent: 'center'
             }}>
               <div style={{
-                fontSize: '18px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.25em',
+                fontSize: '20px',
                 fontWeight: 600,
-                opacity: 0.75,
-                marginBottom: '28px'
+                letterSpacing: '0.08em',
+                color: 'rgba(248, 250, 252, 0.9)',
+                fontFamily: 'Inter, "Segoe UI", sans-serif',
+                marginBottom: '24px',
+                textTransform: 'none'
               }}>
                 {config.companyName || 'Your Company'}
               </div>
@@ -224,7 +225,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 lineHeight: 1.08,
                 marginBottom: '24px'
               }}>
-                {config.reportTitle || 'Analytics Report'}
+                {config.reportTitle || 'Title'}
               </div>
               {config.description && (
                 <div style={{
@@ -696,16 +697,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                               Logo
                             </div>
                           )}
-                          {config.companyName && (
-                            <div style={{
-                              fontSize: '16px',
-                              fontWeight: 600,
-                              color: '#1f2937',
-                              letterSpacing: '0.01em'
-                            }}>
-                              {config.companyName}
-                            </div>
-                          )}
+
                         </div>
 
                         {/* Confidential Status Right */}
@@ -877,7 +869,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 value={config.reportTitle}
                 onChange={handleInputChange('reportTitle')}
                 style={textInputStyle}
-                placeholder="e.g. Q4 2024 Analytics Report"
+                placeholder="Title"
               />
 
               <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="report-description-input">
@@ -1004,97 +996,97 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 placeholder="Your Company"
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '8px' }}>
-                Logo Upload
-              </label>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <label
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: '#ecfeff',
-                    color: '#0e7490',
-                    border: '1px solid #67e8f9',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 500
-                  }}
-                >
-                  Upload Logo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoChange}
-                    style={{ display: 'none' }}
-                  />
-                </label>
-                {config.logoDataUrl && (
-                  <button
-                    onClick={onLogoClear}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#ef4444',
-                      fontSize: '12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-              {config.logoFileName && (
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '18px',
+                marginTop: '12px'
+              }}>
                 <div style={{
-                  marginTop: '6px',
-                  fontSize: '12px',
-                  color: '#64748b'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  minWidth: '160px'
                 }}>
-                  {config.logoFileName}
+                  <label style={{ ...fieldLabelStyle, marginTop: '0px' }} htmlFor="primary-color-input">
+                    Cover Accent Colour
+                  </label>
+                  <input
+                    id="primary-color-input"
+                    type="color"
+                    value={config.primaryColor}
+                    onChange={handleInputChange('primaryColor')}
+                    style={{
+                      width: '56px',
+                      height: '36px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      padding: 0,
+                      cursor: 'pointer',
+                      background: '#ffffff'
+                    }}
+                    aria-label="Select cover accent colour"
+                  />
                 </div>
-              )}
-
-              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="primary-color-input">
-                Primary Color
-              </label>
-              <input
-                id="primary-color-input"
-                type="color"
-                value={config.primaryColor}
-                onChange={handleInputChange('primaryColor')}
-                style={{
-                  width: '48px',
-                  height: '32px',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              />
-
-              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="header-text-input">
-                Header Text
-              </label>
-              <input
-                id="header-text-input"
-                type="text"
-                value={config.headerText}
-                onChange={handleInputChange('headerText')}
-                style={textInputStyle}
-                placeholder="Data Analysis Report"
-              />
-
-              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="footer-text-input">
-                Footer Text
-              </label>
-              <input
-                id="footer-text-input"
-                type="text"
-                value={config.footerText}
-                onChange={handleInputChange('footerText')}
-                style={textInputStyle}
-                placeholder="Confidential"
-              />
+                <div style={{
+                  flex: '1 1 260px',
+                  minWidth: '200px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <label style={{ ...fieldLabelStyle, marginTop: '0px' }}>
+                    Logo Upload
+                  </label>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#ecfeff',
+                        color: '#0e7490',
+                        border: '1px solid #67e8f9',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: 500
+                      }}
+                    >
+                      Upload Logo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoChange}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    {config.logoDataUrl && (
+                      <button
+                        onClick={onLogoClear}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ef4444',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  {config.logoFileName && (
+                    <div style={{
+                      fontSize: '12px',
+                      color: '#64748b'
+                    }}>
+                      {config.logoFileName}
+                    </div>
+                  )}
+                </div>
+              </div>
               </div>
             )}
               </div>
@@ -1151,3 +1143,4 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 };
 
 export default ExportConfigurationModal;
+
