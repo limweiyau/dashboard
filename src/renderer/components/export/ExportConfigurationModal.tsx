@@ -20,42 +20,42 @@ interface ExportConfigurationModalProps {
 }
 
 const cardTitleStyle: React.CSSProperties = {
-  fontSize: '15px',
+  fontSize: '14px',
   fontWeight: 600,
   color: '#0f172a',
-  marginBottom: '10px'
+  marginBottom: '8px'
 };
 
 const cardContainerStyle: React.CSSProperties = {
   background: 'white',
   borderRadius: '12px',
   border: '1px solid #e2e8f0',
-  padding: '16px',
-  marginBottom: '16px',
-  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)'
+  padding: '12px',
+  marginBottom: '6px',
+  boxShadow: '0 4px 16px rgba(15, 23, 42, 0.08)'
 };
 
 const fieldLabelStyle: React.CSSProperties = {
-  fontSize: '13px',
+  fontSize: '12px',
   fontWeight: 600,
   color: '#475569',
-  marginBottom: '6px',
+  marginBottom: '4px',
   display: 'block'
 };
 
 const textInputStyle: React.CSSProperties = {
   width: '100%',
   borderRadius: '8px',
-  border: '1px solid #cbd5f5',
-  padding: '10px 12px',
-  fontSize: '13px',
+  border: '1px solid #d1d5db',
+  padding: '8px 10px',
+  fontSize: '12px',
   color: '#0f172a',
   outline: 'none'
 };
 
 const textareaStyle: React.CSSProperties = {
   ...textInputStyle,
-  minHeight: '96px',
+  minHeight: '72px',
   resize: 'vertical'
 };
 
@@ -65,7 +65,25 @@ const disabledCheckboxLabelStyle: React.CSSProperties = {
 };
 
 const chartsPerPage = 1;
-const pageDimensions = { width: 600, height: 900 };
+// A4 aspect ratio: 210mm x 297mm = 0.707:1
+const pageDimensions = { width: 650, height: 919 }; // Maintains proper A4 ratio, expanded by 30%
+
+// Calculate dynamic preview dimensions based on available space
+const getPreviewDimensions = () => {
+  const containerWidth = Math.min(window.innerWidth * 0.52, 900); // Available preview area width
+  const containerHeight = Math.min(window.innerHeight * 0.8, 750); // Available preview area height
+
+  // Calculate scale to fit both width and height, but less aggressive scaling
+  const scaleX = containerWidth / pageDimensions.width;
+  const scaleY = containerHeight / pageDimensions.height;
+  const scale = Math.min(scaleX, scaleY, 1.2); // Allow slight scaling up, less aggressive scaling down
+
+  return {
+    width: pageDimensions.width * Math.max(scale, 0.7), // Minimum 70% scale
+    height: pageDimensions.height * Math.max(scale, 0.7),
+    scale: Math.max(scale, 0.7)
+  };
+};
 
 type TocEntry = {
   title: string;
@@ -165,6 +183,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 
   const includeAnalysisDisabled = analysisAvailableCount === 0;
   const primaryColor = config.primaryColor || '#3b82f6';
+  const previewDimensions = getPreviewDimensions();
 
   const normalizeInsightText = (text: string) =>
     text.replace(/^(analysis|insights?)\s*[:\-]\s*/i, '').trim();
@@ -254,11 +273,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
       case 'toc':
         return (
           <div style={{
-            flex: 1,
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
             padding: '64px 72px',
-            background: '#ffffff'
+            background: '#ffffff',
+            overflow: 'hidden'
           }}>
             <div style={{ marginBottom: '36px' }}>
               <div style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.28em', color: primaryColor, fontWeight: 600 }}>
@@ -306,12 +326,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
       case 'charts':
         return (
           <div style={{
-            flex: 1,
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            padding: '36px 52px 44px',
+            padding: '20px 30px',
             background: '#ffffff',
-            gap: '26px'
+            overflow: 'hidden'
           }}>
             {page.charts.map((chart, index) => {
               const thumbnail = chartThumbnails[chart.id];
@@ -362,43 +382,44 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               });
 
               return (
-                <div key={chart.id} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div key={chart.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.22em', color: primaryColor, fontWeight: 600 }}>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.22em', color: primaryColor, fontWeight: 600 }}>
                         Chart {chartPosition}
                       </div>
-                      <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a', marginTop: '8px' }}>
+                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginTop: '4px' }}>
                         {chart.name || 'Untitled Chart'}
                       </div>
                       <div style={{
-                        marginTop: '10px',
+                        marginTop: '4px',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '12px',
+                        gap: '4px',
+                        fontSize: '10px',
                         fontWeight: 600,
                         color: '#0f172a',
                         background: 'rgba(59, 130, 246, 0.14)',
                         borderRadius: '999px',
-                        padding: '6px 16px'
+                        padding: '4px 12px'
                       }}>
-                        <span style={{ width: '8px', height: '8px', borderRadius: '999px', background: primaryColor }}></span>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '999px', background: primaryColor }}></span>
                         {chart.type || 'Custom Visualization'}
                       </div>
                     </div>
                   </div>
 
                   <div style={{
-                    borderRadius: '18px',
+                    borderRadius: '12px',
                     border: '1px solid rgba(148, 163, 184, 0.24)',
                     background: '#f8fafc',
-                    padding: '20px',
+                    padding: '12px',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    minHeight: '320px',
-                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)'
+                    height: '200px',
+                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+                    flex: '0 0 auto'
                   }}>
                     {thumbnail ? (
                       <img
@@ -406,23 +427,23 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         alt={`Visualization for ${chart.name || 'chart'}`}
                         style={{
                           width: '100%',
-                          maxHeight: '360px',
+                          height: '100%',
                           objectFit: 'contain',
-                          borderRadius: '14px',
+                          borderRadius: '8px',
                           background: '#ffffff'
                         }}
                       />
                     ) : (
                       <div style={{
                         width: '100%',
-                        height: '280px',
+                        height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center',
                         alignItems: 'center',
                         color: '#94a3b8',
                         border: '1px dashed #cbd5e1',
-                        borderRadius: '14px',
+                        borderRadius: '8px',
                         background: '#ffffff'
                       }}>
                         {isCapturingAssets ? 'Rendering chart preview…' : 'Chart preview not available'}
@@ -430,123 +451,102 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     )}
                   </div>
 
-                  {config.includeAnalysis && (
+                  {config.includeAnalysis && paragraphs.length > 0 && (
                     <div style={{
-                      borderRadius: '16px',
-                      border: `1px solid ${primaryColor}`,
-                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%)',
-                      padding: '20px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '14px'
+                      gap: '4px',
+                      flex: '1 1 auto',
+                      overflow: 'hidden'
                     }}>
-                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
-                        🤖 AI Commentary
-                      </div>
-                      {paragraphs.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          {/* Analysis Block */}
-                          <div style={{
-                            background: 'rgba(59, 130, 246, 0.08)',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(59, 130, 246, 0.2)',
-                            padding: '14px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px'
-                          }}>
-                            <div style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: '#0f172a',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}>
-                              📊 Detailed Analysis
-                            </div>
-                            {narrativeParagraphs.length > 0 ? (
-                              <div style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '10px',
-                                fontSize: '13px',
-                                color: '#1f2937',
-                                lineHeight: 1.6
-                              }}>
-                                {narrativeParagraphs.map((text, idx) => (
-                                  <p key={idx} style={{ margin: 0 }}>{text}</p>
-                                ))}
-                              </div>
-                            ) : (
-                              <div style={{
-                                fontSize: '13px',
-                                color: '#64748b',
-                                fontStyle: 'italic'
-                              }}>
-                                No detailed analysis available for this chart.
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Insights Block */}
-                          <div style={{
-                            background: 'rgba(34, 197, 94, 0.08)',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(34, 197, 94, 0.2)',
-                            padding: '14px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px'
-                          }}>
-                            <div style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: '#0f172a',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}>
-                              💡 Key Insights
-                            </div>
-                            {bulletLines.length > 0 ? (
-                              <div style={{
-                                margin: 0,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '8px',
-                                fontSize: '13px',
-                                color: '#1f2937',
-                                lineHeight: 1.6
-                              }}>
-                                {bulletLines.map((line, idx) => (
-                                  <p key={idx} style={{ margin: 0 }}>{line}</p>
-                                ))}
-                              </div>
-                            ) : (
-                              <div style={{
-                                fontSize: '13px',
-                                color: '#64748b',
-                                fontStyle: 'italic'
-                              }}>
-                                No key insights available for this chart.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
+                      {/* Analysis Block */}
+                      <div style={{
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        padding: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px'
+                      }}>
                         <div style={{
-                          fontSize: '13px',
-                          color: '#64748b',
-                          textAlign: 'center',
-                          padding: '12px',
-                          background: 'rgba(148, 163, 184, 0.1)',
-                          borderRadius: '10px',
-                          border: '1px dashed rgba(148, 163, 184, 0.3)'
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
                         }}>
-                          No AI analysis has been recorded for this chart yet. Generate insights to include commentary in the report.
+                          📊 Analysis
                         </div>
-                      )}
+                        {narrativeParagraphs.length > 0 ? (
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '3px',
+                            fontSize: '9px',
+                            color: '#1f2937',
+                            lineHeight: 1.3
+                          }}>
+                            {narrativeParagraphs.map((text, idx) => (
+                              <p key={idx} style={{ margin: 0 }}>{text}</p>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{
+                            fontSize: '9px',
+                            color: '#64748b',
+                            fontStyle: 'italic'
+                          }}>
+                            No detailed analysis available for this chart.
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Insights Block */}
+                      <div style={{
+                        background: 'rgba(34, 197, 94, 0.08)',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(34, 197, 94, 0.2)',
+                        padding: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px'
+                      }}>
+                        <div style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          💡 Insights
+                        </div>
+                        {bulletLines.length > 0 ? (
+                          <div style={{
+                            margin: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '3px',
+                            fontSize: '9px',
+                            color: '#1f2937',
+                            lineHeight: 1.3
+                          }}>
+                            {bulletLines.map((line, idx) => (
+                              <p key={idx} style={{ margin: 0 }}>{line}</p>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{
+                            fontSize: '9px',
+                            color: '#64748b',
+                            fontStyle: 'italic'
+                          }}>
+                            No key insights available for this chart.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -583,7 +583,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
         boxShadow: '0 36px 72px rgba(15, 23, 42, 0.24)'
       }}>
         <div style={{
-          padding: '20px 28px',
+          padding: '12px 20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -591,11 +591,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
           borderBottom: '1px solid #e2e8f0'
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 600, color: '#0f172a' }}>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>
               Configure Export Report
             </h2>
-            <p style={{ margin: '6px 0 0 0', fontSize: '14px', color: '#475569' }}>
-              Customize the layout, content, and branding for your generated report.
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#475569' }}>
+              Customize layout, content, and branding.
             </p>
           </div>
           <button
@@ -616,8 +616,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 0.55fr) minmax(0, 0.45fr)',
-          gap: '28px',
-          padding: '28px',
+          gap: '20px',
+          padding: '16px',
           overflow: 'hidden',
           minHeight: 0,
           flex: 1
@@ -626,13 +626,13 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             display: 'flex',
             flexDirection: 'column',
             minHeight: 0,
-            height: 'calc(94vh - 200px)',
-            maxHeight: 'calc(94vh - 200px)'
+            height: 'calc(94vh - 90px)',
+            maxHeight: 'calc(94vh - 90px)'
           }}>
             <div style={{
               background: 'white',
               borderRadius: '18px',
-              border: '1px solid #e2e8f0',
+              border: '2px solid #cbd5e1',
               padding: '22px',
               boxShadow: '0 22px 44px rgba(15, 23, 42, 0.2)',
               flex: 1,
@@ -641,17 +641,17 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               flexDirection: 'column'
             }}>
               <div style={{
-                fontSize: '14px',
+                fontSize: '12px',
                 fontWeight: 600,
                 color: '#475569',
-                marginBottom: '16px'
+                marginBottom: '8px'
               }}>
                 Live Preview
               </div>
               <div style={{
-                background: '#e2e8f0',
+                background: '#334155',
                 borderRadius: '14px',
-                padding: '18px',
+                padding: '8px',
                 boxShadow: 'inset 0 1px 3px rgba(15, 23, 42, 0.12)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -664,29 +664,34 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     flex: 1,
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    padding: '24px 20px 36px',
+                    padding: '12px 20px 18px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '32px',
+                    gap: '4px',
                     scrollbarWidth: 'thin',
-                    scrollbarColor: '#94a3b8 transparent'
+                    scrollbarColor: '#64748b #475569'
                   }}
                 >
                   {pages.map((page, index) => (
                     <div
                       key={index}
                       style={{
-                        width: pageDimensions.width,
-                        minHeight: pageDimensions.height,
+                        width: previewDimensions.width,
+                        height: previewDimensions.height,
+                        minHeight: previewDimensions.height,
+                        maxHeight: previewDimensions.height,
                         background: '#ffffff',
                         borderRadius: '14px',
-                        border: '1px solid #dbeafe',
+                        border: '2px solid #94a3b8',
                         boxShadow: '0 14px 32px rgba(15, 23, 42, 0.12)',
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        transform: `scale(${previewDimensions.scale})`,
+                        transformOrigin: 'top center',
+                        position: 'relative'
                       }}
                     >
                       <div style={{
@@ -695,12 +700,18 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         textTransform: 'uppercase',
                         letterSpacing: '0.18em',
                         color: '#94a3b8',
-                        borderBottom: '1px solid #e2e8f0',
-                        background: 'linear-gradient(135deg, rgba(226, 232, 240, 0.6) 0%, rgba(248, 250, 252, 0.9) 100%)'
+                        borderBottom: '2px solid #cbd5e1',
+                        background: 'linear-gradient(135deg, rgba(203, 213, 225, 0.8) 0%, rgba(226, 232, 240, 0.9) 100%)'
                       }}>
                         Page {index + 1} of {totalPages}
                       </div>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      <div style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        minHeight: 0
+                      }}>
                         {renderPageContent(page, index)}
                       </div>
                     </div>
@@ -727,11 +738,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px',
+            gap: '10px',
             overflowY: 'auto',
             paddingRight: '8px',
+            paddingBottom: '8px',
             minHeight: 0,
-            maxHeight: 'calc(94vh - 200px)',
+            maxHeight: 'calc(94vh - 70px)',
             scrollbarWidth: 'thin',
             scrollbarColor: '#94a3b8 transparent'
           }}>
@@ -747,7 +759,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 placeholder="e.g. Q4 2024 Analytics Report"
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '12px' }} htmlFor="report-description-input">
+              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="report-description-input">
                 Description
               </label>
               <textarea
@@ -758,7 +770,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 placeholder="Enter Description Here..."
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '12px' }} htmlFor="report-date-input">
+              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="report-date-input">
                 Report Date
               </label>
               <input
@@ -791,7 +803,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   gap: '10px',
                   fontSize: '13px',
                   color: includeAnalysisDisabled ? '#94a3b8' : '#0f172a',
-                  marginTop: '12px'
+                  marginTop: '8px'
                 }}
               >
                 <input
@@ -839,7 +851,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 placeholder="Your Company"
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '12px' }}>
+              <label style={{ ...fieldLabelStyle, marginTop: '8px' }}>
                 Logo Upload
               </label>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -891,7 +903,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 </div>
               )}
 
-              <label style={{ ...fieldLabelStyle, marginTop: '12px' }} htmlFor="primary-color-input">
+              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="primary-color-input">
                 Primary Color
               </label>
               <input
@@ -907,7 +919,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 }}
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '12px' }} htmlFor="header-text-input">
+              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="header-text-input">
                 Header Text
               </label>
               <input
@@ -919,7 +931,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 placeholder="Data Analysis Report"
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '12px' }} htmlFor="footer-text-input">
+              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="footer-text-input">
                 Footer Text
               </label>
               <input
@@ -935,26 +947,31 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
         </div>
 
         <div style={{
-          padding: '18px 24px',
+          padding: '8px 16px',
           borderTop: '1px solid #e2e8f0',
           background: 'white',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          minHeight: '48px'
         }}>
-          <div style={{ fontSize: '13px', color: '#64748b' }}>
-            {totalSelectedCount} chart{totalSelectedCount === 1 ? '' : 's'} selected • {analysisAvailableCount} with AI insights
+          <div style={{
+            fontSize: '11px',
+            color: '#64748b',
+            fontWeight: 500
+          }}>
+            {totalSelectedCount} chart{totalSelectedCount === 1 ? '' : 's'} • {analysisAvailableCount} insights
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={onBack}
               style={{
                 background: 'white',
                 border: '1px solid #e2e8f0',
                 color: '#475569',
-                borderRadius: '10px',
-                padding: '10px 18px',
-                fontSize: '14px',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
                 fontWeight: 500,
                 cursor: 'pointer'
               }}
@@ -970,14 +987,14 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
                 color: isCapturingAssets || totalSelectedCount === 0 ? '#166534' : 'white',
                 border: 'none',
-                borderRadius: '10px',
-                padding: '10px 24px',
-                fontSize: '14px',
+                borderRadius: '6px',
+                padding: '6px 16px',
+                fontSize: '12px',
                 fontWeight: 600,
                 cursor: isCapturingAssets || totalSelectedCount === 0 ? 'not-allowed' : 'pointer',
                 boxShadow: isCapturingAssets || totalSelectedCount === 0
                   ? 'none'
-                  : '0 18px 28px rgba(22, 163, 74, 0.22)'
+                  : '0 8px 16px rgba(22, 163, 74, 0.22)'
               }}
             >
               {isCapturingAssets ? 'Preparing…' : 'Generate Report'}
