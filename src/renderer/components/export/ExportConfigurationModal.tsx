@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useMemo } from 'react';
+import React, { ChangeEvent, useMemo, useState } from 'react';
 import { Chart } from '../../types';
 import { ExportReportConfig } from './types';
 
@@ -30,16 +30,18 @@ const cardContainerStyle: React.CSSProperties = {
   background: 'white',
   borderRadius: '12px',
   border: '1px solid #e2e8f0',
-  padding: '12px',
-  marginBottom: '6px',
-  boxShadow: '0 4px 16px rgba(15, 23, 42, 0.08)'
+  padding: '20px',
+  marginBottom: '16px',
+  boxShadow: '0 4px 16px rgba(15, 23, 42, 0.08)',
+  transition: 'all 0.2s ease'
 };
 
 const fieldLabelStyle: React.CSSProperties = {
-  fontSize: '12px',
+  fontSize: '13px',
   fontWeight: 600,
-  color: '#475569',
-  marginBottom: '4px',
+  color: '#374151',
+  marginBottom: '8px',
+  marginTop: '12px',
   display: 'block'
 };
 
@@ -47,10 +49,12 @@ const textInputStyle: React.CSSProperties = {
   width: '100%',
   borderRadius: '8px',
   border: '1px solid #d1d5db',
-  padding: '8px 10px',
-  fontSize: '12px',
+  padding: '12px 14px',
+  fontSize: '14px',
   color: '#0f172a',
-  outline: 'none'
+  outline: 'none',
+  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+  backgroundColor: '#f9fafb'
 };
 
 const textareaStyle: React.CSSProperties = {
@@ -66,22 +70,22 @@ const disabledCheckboxLabelStyle: React.CSSProperties = {
 
 const chartsPerPage = 1;
 // A4 aspect ratio: 210mm x 297mm = 0.707:1
-const pageDimensions = { width: 650, height: 919 }; // Maintains proper A4 ratio, expanded by 30%
+const pageDimensions = { width: 780, height: 1103 }; // Maintains proper A4 ratio, expanded by 56%
 
 // Calculate dynamic preview dimensions based on available space
 const getPreviewDimensions = () => {
-  const containerWidth = Math.min(window.innerWidth * 0.52, 900); // Available preview area width
-  const containerHeight = Math.min(window.innerHeight * 0.8, 750); // Available preview area height
+  const containerWidth = Math.min(window.innerWidth * 0.52, 1100); // Available preview area width (increased)
+  const containerHeight = Math.min(window.innerHeight * 0.8, 900); // Available preview area height (increased)
 
   // Calculate scale to fit both width and height, but less aggressive scaling
   const scaleX = containerWidth / pageDimensions.width;
   const scaleY = containerHeight / pageDimensions.height;
-  const scale = Math.min(scaleX, scaleY, 1.2); // Allow slight scaling up, less aggressive scaling down
+  const scale = Math.min(scaleX, scaleY, 1.0); // Allow scaling up to 100%, less aggressive scaling down
 
   return {
-    width: pageDimensions.width * Math.max(scale, 0.7), // Minimum 70% scale
-    height: pageDimensions.height * Math.max(scale, 0.7),
-    scale: Math.max(scale, 0.7)
+    width: pageDimensions.width * Math.max(scale, 0.8), // Minimum 80% scale (increased from 70%)
+    height: pageDimensions.height * Math.max(scale, 0.8),
+    scale: Math.max(scale, 0.8)
   };
 };
 
@@ -112,6 +116,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   onCancel,
   onGenerate
 }) => {
+  const [activeTab, setActiveTab] = useState<'report' | 'content' | 'layout' | 'branding'>('report');
+
   const chunkedChartPages = useMemo(() => {
     if (!config.includeCharts || charts.length === 0) {
       return [] as Array<{ charts: Chart[]; startIndex: number }>;
@@ -587,8 +593,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)',
-          borderBottom: '1px solid #e2e8f0'
+          background: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
+          borderBottom: '1px solid #94a3b8'
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>
@@ -617,7 +623,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 0.55fr) minmax(0, 0.45fr)',
           gap: '20px',
-          padding: '16px',
+          padding: '20px',
           overflow: 'hidden',
           minHeight: 0,
           flex: 1
@@ -626,8 +632,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             display: 'flex',
             flexDirection: 'column',
             minHeight: 0,
-            height: 'calc(94vh - 90px)',
-            maxHeight: 'calc(94vh - 90px)'
+            height: 'calc(94vh - 120px)',
+            maxHeight: 'calc(94vh - 120px)'
           }}>
             <div style={{
               background: 'white',
@@ -640,14 +646,6 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               display: 'flex',
               flexDirection: 'column'
             }}>
-              <div style={{
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#475569',
-                marginBottom: '8px'
-              }}>
-                Live Preview
-              </div>
               <div style={{
                 background: '#334155',
                 borderRadius: '14px',
@@ -664,7 +662,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     flex: 1,
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    padding: '12px 20px 18px',
+                    padding: '16px 20px',
+                    marginBottom: '32px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -738,18 +737,86 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '10px',
-            overflowY: 'auto',
-            paddingRight: '8px',
-            paddingBottom: '8px',
             minHeight: 0,
-            maxHeight: 'calc(94vh - 70px)',
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#94a3b8 transparent'
+            height: 'calc(94vh - 120px)',
+            maxHeight: 'calc(94vh - 120px)',
+            gap: '0px'
           }}>
+            {/* Configuration Panel - TOP ELEMENT */}
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              background: 'white',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb',
+              marginBottom: '12px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+            }}>
+              {/* Tab Navigation */}
+              <div style={{
+                display: 'flex',
+                borderBottom: '1px solid #e5e7eb',
+                marginBottom: '16px',
+                paddingTop: '12px',
+                paddingLeft: '16px',
+                paddingRight: '16px',
+                background: '#f8fafc'
+              }}>
+                {[
+                  { key: 'report', label: 'Report Settings' },
+                  { key: 'content', label: 'Content' },
+                  { key: 'layout', label: 'Layout' },
+                  { key: 'branding', label: 'Branding' }
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key as any)}
+                    style={{
+                      padding: '8px 16px',
+                      border: 'none',
+                      background: 'transparent',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      color: activeTab === tab.key ? '#3b82f6' : '#6b7280',
+                      borderBottom: activeTab === tab.key ? '2px solid #3b82f6' : '2px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== tab.key) {
+                        e.currentTarget.style.color = '#374151';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== tab.key) {
+                        e.currentTarget.style.color = '#6b7280';
+                      }
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Scrollable content area */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                paddingLeft: '16px',
+                paddingRight: '24px',
+                paddingBottom: '16px',
+                paddingTop: '4px',
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#94a3b8 transparent'
+              }}>
+
+            {/* Report Settings Tab */}
+            {activeTab === 'report' && (
             <div style={cardContainerStyle}>
               <div style={cardTitleStyle}>Report Settings</div>
-              <label style={fieldLabelStyle} htmlFor="report-title-input">Report Title</label>
+              <label style={{...fieldLabelStyle, marginTop: '0px'}} htmlFor="report-title-input">Report Title</label>
               <input
                 id="report-title-input"
                 type="text"
@@ -784,64 +851,72 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 }}
               />
             </div>
+            )}
 
-            <div style={cardContainerStyle}>
-              <div style={cardTitleStyle}>Content Options</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#0f172a' }}>
-                <input
-                  type="checkbox"
-                  checked={config.includeCharts}
-                  onChange={handleInputChange('includeCharts')}
-                />
-                Include Charts in Report
-              </label>
+            {/* Content Options Tab */}
+            {activeTab === 'content' && (
+              <div style={cardContainerStyle}>
+                <div style={cardTitleStyle}>Content Options</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#0f172a', marginTop: '0px', marginBottom: '12px' }}>
+                  <input
+                    type="checkbox"
+                    checked={config.includeCharts}
+                    onChange={handleInputChange('includeCharts')}
+                  />
+                  Include Charts in Report
+                </label>
 
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  fontSize: '13px',
-                  color: includeAnalysisDisabled ? '#94a3b8' : '#0f172a',
-                  marginTop: '8px'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={config.includeAnalysis}
-                  onChange={handleInputChange('includeAnalysis')}
-                  disabled={includeAnalysisDisabled}
-                />
-                <span style={includeAnalysisDisabled ? disabledCheckboxLabelStyle : undefined}>
-                  Include AI Analysis Insights
-                </span>
-              </label>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '14px',
+                    color: includeAnalysisDisabled ? '#94a3b8' : '#0f172a',
+                    marginTop: '12px'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={config.includeAnalysis}
+                    onChange={handleInputChange('includeAnalysis')}
+                    disabled={includeAnalysisDisabled}
+                  />
+                  <span style={includeAnalysisDisabled ? disabledCheckboxLabelStyle : undefined}>
+                    Include AI Analysis Insights
+                  </span>
+                </label>
+              </div>
+            )}
 
-            </div>
+            {/* Layout Options Tab */}
+            {activeTab === 'layout' && (
+              <div style={cardContainerStyle}>
+                <div style={cardTitleStyle}>Layout Options</div>
 
-            <div style={cardContainerStyle}>
-              <div style={cardTitleStyle}>Layout Options</div>
+                <label style={{...fieldLabelStyle, marginTop: '0px'}} htmlFor="page-size-select">
+                  Page Size
+                </label>
+                <select
+                  id="page-size-select"
+                  value={config.pageSize}
+                  onChange={handlePageSizeChange}
+                  style={{
+                    ...textInputStyle,
+                    width: 'auto'
+                  }}
+                >
+                  <option value="A4">A4</option>
+                  <option value="Letter">Letter</option>
+                </select>
+              </div>
+            )}
 
-              <label style={fieldLabelStyle} htmlFor="page-size-select">
-                Page Size
-              </label>
-              <select
-                id="page-size-select"
-                value={config.pageSize}
-                onChange={handlePageSizeChange}
-                style={{
-                  ...textInputStyle,
-                  width: 'auto'
-                }}
-              >
-                <option value="A4">A4</option>
-                <option value="Letter">Letter</option>
-              </select>
-            </div>
-
-            <div style={cardContainerStyle}>
-              <div style={cardTitleStyle}>Branding</div>
-              <label style={fieldLabelStyle} htmlFor="company-name-input">Company Name</label>
+            {/* Branding Tab */}
+            {activeTab === 'branding' && (
+              <div style={cardContainerStyle}>
+                <div style={cardTitleStyle}>Branding</div>
+              <label style={{...fieldLabelStyle, marginTop: '0px'}} htmlFor="company-name-input">Company Name</label>
               <input
                 id="company-name-input"
                 type="text"
@@ -942,63 +1017,54 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 style={textInputStyle}
                 placeholder="Confidential"
               />
+              </div>
+            )}
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div style={{
-          padding: '8px 16px',
-          borderTop: '1px solid #e2e8f0',
-          background: 'white',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          minHeight: '48px'
-        }}>
-          <div style={{
-            fontSize: '11px',
-            color: '#64748b',
-            fontWeight: 500
-          }}>
-            {totalSelectedCount} chart{totalSelectedCount === 1 ? '' : 's'} • {analysisAvailableCount} insights
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={onBack}
-              style={{
-                background: 'white',
-                border: '1px solid #e2e8f0',
-                color: '#475569',
-                borderRadius: '6px',
-                padding: '6px 12px',
-                fontSize: '12px',
-                fontWeight: 500,
-                cursor: 'pointer'
-              }}
-            >
-              Back
-            </button>
-            <button
-              onClick={onGenerate}
-              disabled={isCapturingAssets || totalSelectedCount === 0}
-              style={{
-                background: isCapturingAssets || totalSelectedCount === 0
-                  ? '#a7f3d0'
-                  : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                color: isCapturingAssets || totalSelectedCount === 0 ? '#166534' : 'white',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '6px 16px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: isCapturingAssets || totalSelectedCount === 0 ? 'not-allowed' : 'pointer',
-                boxShadow: isCapturingAssets || totalSelectedCount === 0
-                  ? 'none'
-                  : '0 8px 16px rgba(22, 163, 74, 0.22)'
-              }}
-            >
-              {isCapturingAssets ? 'Preparing…' : 'Generate Report'}
-            </button>
+            {/* Generate Report Button - BOTTOM ELEMENT - COMPLETELY SEPARATE */}
+            <div style={{
+              flexShrink: 0,
+              padding: '8px 0px'
+            }}>
+              <button
+                onClick={onGenerate}
+                disabled={isCapturingAssets || totalSelectedCount === 0}
+                style={{
+                  width: '100%',
+                  background: isCapturingAssets || totalSelectedCount === 0
+                    ? '#a7f3d0'
+                    : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                  color: isCapturingAssets || totalSelectedCount === 0 ? '#166534' : 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: isCapturingAssets || totalSelectedCount === 0 ? 'not-allowed' : 'pointer',
+                  boxShadow: isCapturingAssets || totalSelectedCount === 0
+                    ? 'none'
+                    : '0 4px 12px rgba(22, 163, 74, 0.25), 0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isCapturingAssets && totalSelectedCount > 0) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(22, 163, 74, 0.3), 0 2px 4px rgba(0, 0, 0, 0.08)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isCapturingAssets && totalSelectedCount > 0) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+                    e.currentTarget.style.transform = 'translateY(0px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.25), 0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }
+                }}
+              >
+                {isCapturingAssets ? 'Preparing…' : 'Generate Report'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
