@@ -1,6 +1,6 @@
 import React, { ChangeEvent, useMemo, useState } from 'react';
 import { Chart } from '../../types';
-import { ExportReportConfig } from './types';
+import { ExportReportConfig, ConfidentialStatus } from './types';
 
 interface ExportConfigurationModalProps {
   config: ExportReportConfig;
@@ -202,35 +202,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             <div style={{
               flex: 1,
               padding: '72px 80px',
-              background: `linear-gradient(135deg, ${primaryColor} 0%, rgba(14, 116, 144, 0.85) 100%)`,
+              background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryColor}cc 100%)`,
               color: '#f8fafc',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center'
             }}>
-              {config.logoDataUrl ? (
-                <div style={{ marginBottom: '32px' }}>
-                  <img
-                    src={config.logoDataUrl}
-                    alt="Company logo"
-                    style={{ width: '84px', height: '84px', objectFit: 'contain', borderRadius: '18px', background: 'rgba(255,255,255,0.18)', padding: '12px' }}
-                  />
-                </div>
-              ) : (
-                <div style={{
-                  width: '72px',
-                  height: '72px',
-                  borderRadius: '16px',
-                  background: 'rgba(255,255,255,0.16)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '32px',
-                  marginBottom: '32px'
-                }}>
-                  🏢
-                </div>
-              )}
               <div style={{
                 fontSize: '18px',
                 textTransform: 'uppercase',
@@ -261,18 +238,6 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               )}
             </div>
 
-            <div style={{
-              padding: '26px 72px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              background: '#ffffff'
-            }}>
-              <div style={{ fontSize: '14px', color: '#475569' }}>Prepared on {config.reportDate || '—'}</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.24em' }}>
-                {config.footerText || 'Confidential'}
-              </div>
-            </div>
           </div>
         );
 
@@ -693,17 +658,79 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         position: 'relative'
                       }}
                     >
+                      {/* Professional Header */}
                       <div style={{
-                        padding: '14px 24px',
-                        fontSize: '12px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.18em',
-                        color: '#94a3b8',
-                        borderBottom: '2px solid #cbd5e1',
-                        background: 'linear-gradient(135deg, rgba(203, 213, 225, 0.8) 0%, rgba(226, 232, 240, 0.9) 100%)'
+                        padding: '16px 24px',
+                        borderBottom: '1px solid #e5e7eb',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        minHeight: '60px'
                       }}>
-                        Page {index + 1} of {totalPages}
+                        {/* Logo + Company Name Left */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {config.logoDataUrl ? (
+                            <img
+                              src={config.logoDataUrl}
+                              alt="Company Logo"
+                              style={{
+                                height: '32px',
+                                width: 'auto',
+                                maxWidth: '120px',
+                                objectFit: 'contain'
+                              }}
+                            />
+                          ) : (
+                            <div style={{
+                              height: '32px',
+                              width: '80px',
+                              background: '#f3f4f6',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '10px',
+                              color: '#6b7280'
+                            }}>
+                              Logo
+                            </div>
+                          )}
+                          {config.companyName && (
+                            <div style={{
+                              fontSize: '16px',
+                              fontWeight: 600,
+                              color: '#1f2937',
+                              letterSpacing: '0.01em'
+                            }}>
+                              {config.companyName}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Confidential Status Right */}
+                        <div style={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: config.confidentialStatus === 'Restricted' ? '#dc2626' :
+                                config.confidentialStatus === 'Confidential' ? '#ea580c' :
+                                config.confidentialStatus === 'Internal' ? '#059669' : '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          padding: '4px 8px',
+                          border: `1px solid ${config.confidentialStatus === 'Restricted' ? '#dc2626' :
+                                config.confidentialStatus === 'Confidential' ? '#ea580c' :
+                                config.confidentialStatus === 'Internal' ? '#059669' : '#6b7280'}`,
+                          borderRadius: '4px',
+                          background: config.confidentialStatus === 'Restricted' ? '#fee2e2' :
+                                config.confidentialStatus === 'Confidential' ? '#fed7aa' :
+                                config.confidentialStatus === 'Internal' ? '#dcfce7' : '#f9fafb'
+                        }}>
+                          {config.confidentialStatus}
+                        </div>
                       </div>
+
+                      {/* Page Content */}
                       <div style={{
                         flex: 1,
                         display: 'flex',
@@ -712,6 +739,33 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         minHeight: 0
                       }}>
                         {renderPageContent(page, index)}
+                      </div>
+
+                      {/* Professional Footer */}
+                      <div style={{
+                        padding: '12px 24px',
+                        borderTop: '1px solid #e5e7eb',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '11px',
+                        color: '#6b7280',
+                        minHeight: '40px',
+                        background: '#fafbfc'
+                      }}>
+                        {/* Prepared Date Left */}
+                        <div>
+                          Prepared on {new Date(config.reportDate).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </div>
+
+                        {/* Page Number Right */}
+                        <div style={{ fontWeight: 500 }}>
+                          Page {index + 1} of {totalPages}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -837,19 +891,43 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 placeholder="Enter Description Here..."
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="report-date-input">
-                Report Date
-              </label>
-              <input
-                id="report-date-input"
-                type="date"
-                value={config.reportDate}
-                onChange={handleInputChange('reportDate')}
-                style={{
-                  ...textInputStyle,
-                  width: 'auto'
-                }}
-              />
+              {/* Date and Classification Row */}
+              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ ...fieldLabelStyle, marginTop: '0px' }} htmlFor="report-date-input">
+                    Report Date
+                  </label>
+                  <input
+                    id="report-date-input"
+                    type="date"
+                    value={config.reportDate}
+                    onChange={handleInputChange('reportDate')}
+                    style={{
+                      ...textInputStyle,
+                      width: '100%'
+                    }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ ...fieldLabelStyle, marginTop: '0px' }} htmlFor="confidential-status-select">
+                    Classification
+                  </label>
+                  <select
+                    id="confidential-status-select"
+                    value={config.confidentialStatus}
+                    onChange={handleInputChange('confidentialStatus')}
+                    style={{
+                      ...textInputStyle,
+                      width: '100%'
+                    }}
+                  >
+                    <option value="Public">Public</option>
+                    <option value="Internal">Internal</option>
+                    <option value="Confidential">Confidential</option>
+                    <option value="Restricted">Restricted</option>
+                  </select>
+                </div>
+              </div>
             </div>
             )}
 

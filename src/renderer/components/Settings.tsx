@@ -309,21 +309,33 @@ const Settings: React.FC<SettingsProps> = ({
                   )}
                 </button>
               </div>
-              {testingConnection && (
-                <div style={{
+              <button
+                type="button"
+                onClick={() => handleTestConnection('gemini')}
+                disabled={!formData.apiKeys.gemini || testingConnection}
+                style={{
                   padding: '12px 20px',
-                  background: '#e5e7eb',
-                  color: '#6b7280',
+                  background: formData.apiKeys.gemini && !testingConnection ? '#4f46e5' : '#e5e7eb',
+                  color: formData.apiKeys.gemini && !testingConnection ? 'white' : '#6b7280',
+                  border: 'none',
                   borderRadius: '8px',
                   fontWeight: '500',
+                  cursor: formData.apiKeys.gemini && !testingConnection ? 'pointer' : 'not-allowed',
                   display: 'flex',
                   alignItems: 'center',
-                  minWidth: '140px'
-                }}>
-                  <div className="spinner" style={{ marginRight: '8px' }}></div>
-                  Testing...
-                </div>
-              )}
+                  minWidth: '140px',
+                  fontSize: '14px'
+                }}
+              >
+                {testingConnection ? (
+                  <>
+                    <div className="spinner" style={{ marginRight: '8px' }}></div>
+                    Testing...
+                  </>
+                ) : (
+                  <>🔍 Test API</>
+                )}
+              </button>
             </div>
             </form>
             

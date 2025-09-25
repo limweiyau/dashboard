@@ -1,0 +1,379 @@
+[33mcommit da6f194753b0286f757cdcbc7449524605cb512e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: limweiyau <weiyau@live.com>
+Date:   Wed Sep 24 17:35:13 2025 +0800
+
+    Checkpoint 2.2 - Export configuration cleanup and improvements
+    
+    - Removed landscape/portrait orientation selection (simplified to portrait-only)
+    - Removed chart "Updated" date from export preview for cleaner layout
+    - Fixed description input behavior:
+      * Default value is now empty instead of pre-filled text
+      * Placeholder shows "Enter Description Here..." for guidance
+      * Cover page only displays description when user actually enters content
+      * No automatic description population based on chart count
+    - Streamlined Layout Options section to show only Page Size selection
+    - Enhanced user control over export content with cleaner defaults
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 1e929f38f4e6429a8c054f2780e0fefee999779b[m
+Author: limweiyau <weiyau@live.com>
+Date:   Wed Sep 24 16:26:36 2025 +0800
+
+    Checkpoint 2.1 - Export preview and screenshot improvements
+    
+    - Fixed chart preview scrolling and layout issues in export modal
+    - Reduced page dimensions for better fit within preview area
+    - Enhanced analysis and insights parsing with smart paragraph detection
+    - Separated analysis and insights into distinct visual sections
+    - Improved ChartRenderer to use forwardRef for direct screenshot capture
+    - Added chartVisualizationRefs for more precise chart screenshot targeting
+    - Enhanced export preview with better scrolling and content organization
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit ee878b54d4306160655b696dcec8c2faa76dde95[m
+Author: limweiyau <weiyau@live.com>
+Date:   Wed Sep 24 16:05:49 2025 +0800
+
+    Checkpoint 2.0 - Export functionality foundation
+    
+    - Added html2canvas dependency for chart screenshot capture
+    - Implemented chart thumbnail caching system
+    - Created export flow modals (ChartSelectionModal, ExportConfigurationModal)
+    - Added export report configuration with logo upload support
+    - Integrated chart analysis data with export functionality
+    - Added export button to dashboard interface
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 229d0c3c06e0188e3c6475ca3fae7ab90a95dda2[m
+Author: limweiyau <weiyau@live.com>
+Date:   Wed Sep 24 11:05:47 2025 +0800
+
+    Checkpoint 1.9 - Fixed floating point precision errors
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 529ffafcb46d531f6c33be29b91cda8d895bb789[m
+Author: limweiyau <weiyau@live.com>
+Date:   Tue Sep 23 14:51:33 2025 +0800
+
+    Checkpoint 1.8 - UI improvements and bug fixes
+    
+    - Adjusted analysis modal layout (55%/45% split for better space utilization)
+    - Fixed decimal places auto-adjustment when display units are changed
+    - Fixed pie chart horizontal centering by accounting for chart offsets
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit dbbab857f2041c46a39657c8612826bdb3dd5d4d[m
+Author: limweiyau <weiyau@live.com>
+Date:   Tue Sep 23 14:15:28 2025 +0800
+
+    Checkpoint 1.7 - Chart position shifter controls in Chart Builder
+    
+    Added comprehensive chart positioning functionality to Chart Builder's Layout tab:
+    
+    • Chart Position Controls: Added "Shift Left/Right" and "Shift Up/Down" sliders in Layout > Chart tab
+    • Type Definitions: Extended ChartConfiguration with chartOffsetX and chartOffsetY properties
+    • Real-time Preview: Chart position changes are immediately visible in preview
+    • Configuration Persistence: Position offsets are saved and loaded with chart configurations
+    • Rendering Integration: Chart offsets applied to main SVG group transform in ChartRenderer
+    • UI Consistency: Positioning controls match existing Chart Builder design patterns
+    
+    Users can now fine-tune chart positioning by shifting charts up to ±50px in any direction for precise layout control.
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 54eb2653e4047c68bdb07c5d687a1dc8be2d3f56[m
+Author: limweiyau <weiyau@live.com>
+Date:   Tue Sep 23 12:30:30 2025 +0800
+
+    Checkpoint 1.6 - Filter-analysis persistence and true 1:1 chart replica
+    
+    Major Features Implemented:
+    
+    🔄 Filter-Analysis Persistence System
+    - Fixed critical issue where analysis was lost when switching filters
+    - Implemented nested storage: chartId -> filterFingerprint -> analysis
+    - Each filter combination now stores its own analysis permanently
+    - Smart UI states: Analysis (purple), Generate (Filters Changed) (orange), Generate (green)
+    - Backward compatibility with existing analyses
+    - Automatic analysis retrieval when returning to previous filter combinations
+    
+    📊 True 1:1 Chart Replica in Analysis Modal
+    - Fixed chart preview clipping issues in Analysis modal
+    - Chart now uses exact same dimensions as Your Charts display
+    - Included proper paddingHorizontal and paddingVertical values
+    - Dramatically reduced header size to maximize chart space
+    - Optimized layout: 65% chart, 35% analysis panel
+    - Removed container constraints causing bottom clipping
+    - Modal now scrollable with proper overflow handling
+    
+    UI Improvements:
+    - Compact header design with smaller buttons and text
+    - Better space utilization for chart display
+    - Enhanced analysis modal layout and responsiveness
+    - Perfect visual consistency between Chart Builder preview, Your Charts, and Analysis modal
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit bf61b4103ec794b85596c3903ff5b2905879cc18[m
+Author: limweiyau <weiyau@live.com>
+Date:   Tue Sep 23 12:13:09 2025 +0800
+
+    Checkpoint 1.5 - Chart display improvements and 1:1 fidelity fixes
+    
+    - Fixed 1:1 chart replica issue between Chart Builder preview and Your Charts
+      - Added paddingHorizontal and paddingVertical to saved chart configurations
+      - Updated chart loading to restore padding state variables
+      - Ensured exact visual consistency between preview and display
+    
+    - Enhanced button styling and removed visual clutter
+      - Removed emojis from Generate and Analysis buttons for cleaner UI
+      - Changed Analysis button to purple gradient for better visual distinction
+      - Fixed chart container styling to remove grey background and borders
+      - Reduced bottom padding for better layout spacing
+    
+    - Resolved chart clipping issues
+      - Removed container padding that was causing x-axis title clipping
+      - Improved chart container dimensions for complete visibility
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 0d347b4709beee74e614bb384d9364e7f265ddf2[m
+Author: limweiyau <weiyau@live.com>
+Date:   Tue Sep 23 12:00:18 2025 +0800
+
+    Checkpoint 1.4 - UI consistency and button improvements
+    
+    - Reduced Generate/Edit/Delete button sizes in Your Charts page for better layout
+    - Fixed data labels position button styling to match legend position buttons
+    - Added proper default values for data labels position based on chart type
+    - Improved Save/Cancel button container padding for better vertical centering
+    - Enhanced UI consistency across position selection controls
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit f153f792de1e9d4997d11efe3602d1e37a3dda0b[m
+Author: limweiyau <weiyau@live.com>
+Date:   Mon Sep 22 18:35:37 2025 +0800
+
+    Checkpoint 1.3 - Enhanced chart centering and responsive layout improvements
+    
+    - Fixed chart centering at all zoom levels with double-layer flex centering
+    - Improved responsive container sizing to utilize full screen width on larger displays
+    - Reduced overall panel heights and made padding consistent (16px chart preview, 12px buttons)
+    - Changed chart aspect ratio from 16:9 to 3:2 for more compact layout
+    - Enhanced chart dimensions calculation to prevent overflow while maximizing screen usage
+    - Reduced navbar padding from 36px to 16px for more compact header
+    - Fixed Save/Cancel button vertical centering and sizing
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit b50b77ccf3dcbc1d4d865efa4b8659a4a6b0aa6b[m
+Author: limweiyau <weiyau@live.com>
+Date:   Mon Sep 22 18:09:46 2025 +0800
+
+    Checkpoint 1.2 - Enhanced ChartBuilder UI and responsive design
+    
+    ## Key Improvements
+    
+    ### Dynamic Layout System
+    - Config panel height now dynamically matches chart preview height
+    - Implemented responsive height calculations using chartDimensions.previewHeight
+    - Added zoom-level independent positioning for consistent behavior across 100%-150%+ zoom
+    
+    ### Save/Cancel Button Fixes
+    - Fixed button visibility issues at high zoom levels (150%+)
+    - Implemented proper button positioning with dynamic height calculations
+    - Resolved CSS reflow issues that required manual resize to show buttons
+    - Added initial layout recalculation timer to ensure correct positioning on first load
+    
+    ### Auto-Hide Navigation
+    - Implemented auto-hide navbar that disappears on scroll down (>100px)
+    - Shows navbar on scroll up for better screen real estate utilization
+    - Added smooth 0.3s transitions with sticky positioning
+    - Chart type selection dropdown also auto-hides within ChartBuilder
+    
+    ### Cross-Zoom Compatibility
+    - Replaced fixed vh calculations with dynamic pixel-based measurements
+    - Added Math.max() fallbacks to handle initial render timing issues
+    - Improved button centering that works consistently across all zoom levels
+    - Fixed percentage-based transforms that were causing zoom-dependent positioning issues
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 56534325bddc795ae6bcb4a1cea827b854ad3d97[m
+Author: limweiyau <weiyau@live.com>
+Date:   Sun Sep 21 23:29:22 2025 +0800
+
+    DB Builder 1.1 - Enhanced filtering system and smart analysis features
+    
+    • Implemented 3-filter limit with visual indicators and smart UI feedback
+    • Added intelligent filter change detection with fingerprinting system
+    • Enhanced analysis modal with applied filters display in purple theme
+    • Fixed filter section height consistency between date and regular filters
+    • Improved chart card width to accommodate multiple filter controls
+    • Added smart decimal place auto-adjustment for display units (K, M, B)
+    • Replaced recommendations section with detailed filter context display
+    • Enhanced analysis accuracy by only invalidating when filters actually affect data
+    • Added comprehensive filter state management and validation
+    • Improved UI responsiveness and space efficiency throughout
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 14d3772ffaf44148fc2b42773953992c8c870c0a[m
+Author: limweiyau <weiyau@live.com>
+Date:   Sun Sep 21 22:48:01 2025 +0800
+
+    Historical DB Builder 1.0 - Complete dashboard and analysis system
+    
+    This commit represents a stable, feature-complete version of the dashboard builder
+    with all major functionality implemented and polished. This is marked as a historical
+    fallback point for future development.
+    
+    Major Features Implemented:
+    - Complete chart builder with adaptive layout system
+    - Unified chart sizing across all contexts (16:9 aspect ratio)
+    - Split header layout (Title/Actions row + Filters row)
+    - AI-powered analysis generation with persistent storage
+    - Enhanced analysis modal with proper chart sizing
+    - Three-section analysis display (Analysis/Insights/Recommendations)
+    - Smart Generate/Analysis button with state management
+    - Date field support in chart builder x-axis selection
+    - Improved legend positioning consistency
+    - Professional styling and visual hierarchy
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 9b03058d13f9df3e7e6b993757a5176e7f559c5b[m
+Author: limweiyau <weiyau@live.com>
+Date:   Sat Sep 20 01:43:11 2025 +0800
+
+    Implement Phase 2: Collapsible configuration sections for vertical layout
+    
+    - Add CollapsibleSection component with smooth animations
+    - Configuration sections auto-collapse in vertical layout mode
+    - Sections expand/collapse with smooth height and opacity transitions
+    - Tab navigation hidden in vertical mode, replaced with collapsible headers
+    - Data and Layout sections now support both layouts
+    - Enhanced visual feedback with hover states and active indicators
+    - Prepare foundation for remaining sections (axes, colors, style)
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit c3bd237ea7fd94c9b094b9979cbe58cf00783396[m
+Author: limweiyau <weiyau@live.com>
+Date:   Sat Sep 20 01:38:20 2025 +0800
+
+    Implement Phase 1 of adaptive ChartBuilder layout system
+    
+    - Add chart size classification (big vs small charts)
+    - Implement adaptive layout modes (vertical for big charts, horizontal for small)
+    - Add smooth transitions between layout modes with cubic-bezier easing
+    - Prevent jarring resize when switching chart types
+    - Chart preview adapts aspect ratio (16:9 for big, 1:1 for small charts)
+    - Configuration and preview panels reorder based on layout mode
+    - Enhanced visual feedback during layout transitions
+    
+    Big Charts: Bar, Line, Area, Scatter (use vertical layout)
+    Small Charts: Pie, Donut (use horizontal layout)
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 7ca0e20ca23a72a804d2b7e689e044d482148f58[m
+Author: limweiyau <weiyau@live.com>
+Date:   Sat Sep 20 01:32:45 2025 +0800
+
+    Fix chart builder data labels and series field logic
+    
+    - Remove redundant 'Values are displayed by default' messages for bar, line, and area charts
+    - Limit series field selection to categorical columns for stacked bar charts
+    - Hide aggregation option for stacked bar charts since stacking doesn't require aggregation
+    - Improve user experience by removing confusing UI elements
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 1500224fe08abf6229997582db9694072a97393d[m
+Author: limweiyau <weiyau@live.com>
+Date:   Sat Sep 20 01:26:36 2025 +0800
+
+    Fix chart builder UI layout and implement 16:9 aspect ratio
+    
+    - Change panel distribution from 55:45 to 40:60 (4:6 ratio)
+    - Implement fixed 16:9 aspect ratio for chart preview containers
+    - Fix chart container cards in "Your Charts" page to properly wrap around chart previews
+    - Adjust chart dimensions to 720x405 to maintain 16:9 ratio within containers
+    - Prevent charts from "zipping out" of the screen during selection
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+[33mcommit 5d580bbd7dd38e8555444486ea6eeb84d5299600[m
+Author: limweiyau <weiyau@live.com>
+Date:   Thu Sep 18 22:30:28 2025 +0800
+
+    Implement modal analysis system and fix layout issues
+    
+    🔧 Scatter Plot Fix:
+    - Fixed scatter plot x-axis hardcoded to 0 issue
+    - Added proper data value extraction with fallback logic
+    
+    📊 Modal Analysis System:
+    - Created ChartAnalysisModal component with split layout (55% chart, 45% analysis)
+    - Added smart Generate/Analysis buttons to chart cards
+    - Green "Generate" button → Purple "Analysis" button → Gray "Generating..." states
+    - Smooth modal flow: Generate → Show Analysis → Regenerate
+    - Modal shows chart + AI analysis side-by-side with regenerate functionality
+    
+    🎨 Chart Builder Layout Fix:
+    - Fixed dynamic resizing issue in chart configuration
+    - Changed from 60:40 → 30:70 dynamic layout to consistent 55:45 fixed ratio
+    - Configuration panel: 55% (fixed width, no more resizing)
+    - Chart preview panel: 45% (fixed width, maintains ratio)
+    - Layout stays consistent regardless of chart selection state
+    
+    ✨ UX Improvements:
+    - Analysis hidden in modal to declutter main view
+    - Regenerate button in modal header for easy access
+    - Professional modal design with gradient headers and hover effects
+    - Proper state management for analysis generation/display
+    
+    🤖 Generated with Claude Code
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>

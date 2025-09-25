@@ -123,91 +123,187 @@ const DataImport: React.FC<DataImportProps> = ({ onImport, onCancel }) => {
   };
 
   return (
-    <div className="empty-state">
-      <div className="empty-state-icon">📊</div>
-      <h2 className="empty-state-title">Import Your Data</h2>
-      <p className="empty-state-description">
-        Upload a CSV, JSON, or Excel file to get started with your visualizations.
-        Supported formats: .csv, .json, .xlsx, .xls
-      </p>
-
-      {error && (
-        <div style={{ 
-          color: '#dc3545', 
-          background: '#f8d7da', 
-          border: '1px solid #f5c6cb',
-          borderRadius: '8px',
-          padding: '12px',
-          marginBottom: '16px',
-          maxWidth: '500px'
-        }}>
-          {error}
-        </div>
-      )}
-
-      <div
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        style={{
-          border: '2px dashed #d1d1d6',
-          borderRadius: '12px',
-          padding: '40px',
-          margin: '20px 0',
-          background: '#f8f9fa',
-          cursor: 'pointer',
-          transition: 'all 0.2s',
-          maxWidth: '500px'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = '#007aff';
-          e.currentTarget.style.background = '#f0f8ff';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = '#d1d1d6';
-          e.currentTarget.style.background = '#f8f9fa';
-        }}
-        onClick={handleFileSelect}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📁</div>
-          <p style={{ margin: '0 0 8px 0', fontWeight: '500' }}>
-            Drop your file here or click to browse
-          </p>
-          <p style={{ margin: '0', fontSize: '14px', color: '#86868b' }}>
-            CSV, JSON, or Excel files up to 100MB
-          </p>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(15, 23, 42, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '20px'
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        padding: '24px',
+        width: 'min(400px, 90vw)',
+        maxHeight: '80vh',
+        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+        textAlign: 'center',
+        position: 'relative'
+      }}>
+        {/* Close Button */}
         <button
           onClick={onCancel}
           style={{
-            padding: '8px 16px',
-            background: 'white',
-            color: '#374151',
-            border: '1px solid #d1d5db',
-            borderRadius: '6px',
+            position: 'absolute',
+            top: '12px',
+            right: '12px',
+            background: 'none',
+            border: 'none',
+            fontSize: '20px',
+            color: '#6b7280',
             cursor: 'pointer',
-            fontSize: '14px'
+            padding: '4px',
+            borderRadius: '4px'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+        >
+          ×
+        </button>
+
+        <h2 style={{
+          fontSize: '18px',
+          fontWeight: '600',
+          margin: '0 0 8px 0',
+          color: '#1f2937'
+        }}>Import Data</h2>
+
+        <p style={{
+          fontSize: '14px',
+          color: '#6b7280',
+          margin: '0 0 20px 0'
+        }}>
+          CSV, JSON, Excel files supported
+        </p>
+
+        {error && (
+          <div style={{
+            color: '#dc2626',
+            background: '#fee2e2',
+            border: '1px solid #fecaca',
+            borderRadius: '8px',
+            padding: '12px',
+            marginBottom: '16px',
+            fontSize: '13px',
+            fontWeight: '500'
+          }}>
+            {error}
+          </div>
+        )}
+
+        <div
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onClick={handleFileSelect}
+          style={{
+            border: '2px dashed #d1d5db',
+            borderRadius: '8px',
+            padding: '32px 16px',
+            background: '#f9fafb',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            marginBottom: '20px'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = '#3b82f6';
+            e.currentTarget.style.background = '#eff6ff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = '#d1d5db';
+            e.currentTarget.style.background = '#f9fafb';
           }}
         >
-          Cancel
-        </button>
-        <button
-          className={`btn ${loading ? 'btn-secondary' : 'btn-primary'}`}
-          onClick={handleFileSelect}
-          disabled={loading}
-        >
           {loading ? (
-            <>
-              <div className="spinner"></div>
-              Processing...
-            </>
+            <div>
+              <div style={{ marginBottom: '12px' }}>
+                <div className="spinner"></div>
+              </div>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                Processing file...
+              </p>
+            </div>
           ) : (
-            'Browse Files'
+            <div>
+              <div style={{
+                marginBottom: '12px',
+                color: '#6b7280'
+              }}>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7,10 12,15 17,10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </div>
+              <p style={{
+                margin: '0 0 4px 0',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151'
+              }}>
+                Drop files here or click to browse
+              </p>
+              <p style={{
+                margin: 0,
+                fontSize: '12px',
+                color: '#9ca3af'
+              }}>
+                CSV, JSON, Excel files up to 100MB
+              </p>
+            </div>
           )}
-        </button>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          justifyContent: 'center'
+        }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '8px 16px',
+              background: '#f3f4f6',
+              color: '#374151',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: '500'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#e5e7eb'}
+            onMouseLeave={(e) => e.currentTarget.style.background = '#f3f4f6'}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleFileSelect}
+            disabled={loading}
+            style={{
+              padding: '8px 16px',
+              background: loading ? '#e5e7eb' : '#3b82f6',
+              color: loading ? '#9ca3af' : 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '13px',
+              fontWeight: '500'
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) e.currentTarget.style.background = '#2563eb';
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) e.currentTarget.style.background = '#3b82f6';
+            }}
+          >
+            {loading ? 'Processing...' : 'Browse Files'}
+          </button>
+        </div>
       </div>
     </div>
   );

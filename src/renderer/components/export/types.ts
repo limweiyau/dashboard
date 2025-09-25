@@ -2,6 +2,7 @@ export type ExportStage = 'selection' | 'config';
 
 export type ExportOrientation = 'portrait' | 'landscape';
 export type ExportPageSize = 'A4' | 'Letter';
+export type ConfidentialStatus = 'Public' | 'Internal' | 'Confidential' | 'Restricted';
 
 export interface ExportReportConfig {
   reportTitle: string;
@@ -19,4 +20,5 @@ export interface ExportReportConfig {
   primaryColor: string;
   headerText: string;
   footerText: string;
+  confidentialStatus: ConfidentialStatus;
 }
