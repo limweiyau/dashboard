@@ -102,14 +102,25 @@ const ChartSelectionModal: React.FC<ChartSelectionModalProps> = ({
             <button
               onClick={onSelectAll}
               style={{
-                border: '1px solid #cbd5f5',
-                background: '#eef2ff',
-                color: '#4338ca',
+                border: '1px solid #e2e8f0',
+                background: 'white',
+                color: '#64748b',
                 borderRadius: '8px',
                 padding: '8px 12px',
                 fontSize: '13px',
                 fontWeight: 500,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#eef2ff';
+                e.currentTarget.style.color = '#4338ca';
+                e.currentTarget.style.borderColor = '#cbd5f5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'white';
+                e.currentTarget.style.color = '#64748b';
+                e.currentTarget.style.borderColor = '#e2e8f0';
               }}
             >
               Select All
@@ -124,7 +135,18 @@ const ChartSelectionModal: React.FC<ChartSelectionModalProps> = ({
                 padding: '8px 12px',
                 fontSize: '13px',
                 fontWeight: 500,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#eef2ff';
+                e.currentTarget.style.color = '#4338ca';
+                e.currentTarget.style.borderColor = '#cbd5f5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'white';
+                e.currentTarget.style.color = '#64748b';
+                e.currentTarget.style.borderColor = '#e2e8f0';
               }}
             >
               Clear All
@@ -221,7 +243,7 @@ const ChartSelectionModal: React.FC<ChartSelectionModalProps> = ({
         </div>
 
         <div style={{
-          padding: '20px 24px',
+          padding: '14px 24px',
           borderTop: '1px solid #e2e8f0',
           background: '#f8fafc',
           display: 'flex',
