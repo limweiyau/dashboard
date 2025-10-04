@@ -352,16 +352,16 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 2000,
-      padding: '20px'
+      padding: '10px'
     }}>
       <div style={{
         background: 'white',
         borderRadius: '16px',
-        width: '95vw',
-        maxWidth: '1600px',
+        width: '98vw',
+        maxWidth: '1800px',
         height: 'auto',
-        maxHeight: '90vh',
-        overflow: 'auto',
+        maxHeight: '95vh',
+        overflow: 'hidden',
         boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
         display: 'flex',
         flexDirection: 'column'
@@ -453,28 +453,30 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
         <div style={{
           display: 'flex',
           flex: 1,
-          overflow: 'visible',
+          overflow: 'auto',
           minHeight: '500px'
         }}>
           {/* Chart Section */}
           <div style={{
-            minWidth: `${dimensions.width + 40}px`, // Chart width + padding
-            flexShrink: 0,
+            flex: '0 0 75%',
+            maxWidth: '75%',
             padding: '20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
             borderRight: '2px solid #f1f5f9',
-            overflow: 'visible'
+            overflow: 'hidden'
           }}>
-            {memoizedChart}
+            <div style={{ maxWidth: '100%', maxHeight: '100%' }}>
+              {memoizedChart}
+            </div>
           </div>
 
           {/* Right Panel */}
           <div style={{
-            flex: 1,
-            minWidth: '400px',
+            flex: '1 1 25%',
+            maxWidth: '25%',
             display: 'flex',
             flexDirection: 'column',
             background: '#f8fafc',
