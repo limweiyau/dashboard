@@ -1922,13 +1922,23 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
                     {/* Maximized Chart Content */}
                     <div style={{
-                      padding: '6px 6px 2px 6px',
-                      background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
+                      padding: '3px 13px 20px 13px',
+                      background: '#ffffff',
                       borderTop: '1px solid #e5e7eb',
                       display: 'flex',
                       justifyContent: 'center',
                       alignItems: 'center'
                     }}>
+                      <div style={{
+                        width: '100%',
+                        height: 'calc(100% - 25px)',
+                        border: '2px solid #8b5cf6',
+                        borderRadius: '8px',
+                        padding: '3px',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
                       <div style={{
                         width: '100%',
                         height: `${chartConfig.chartHeight}px`,
@@ -1991,6 +2001,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             </div>
                           </div>
                         )}
+                      </div>
                       </div>
                     </div>
                   </div>

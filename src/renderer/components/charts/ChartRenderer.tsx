@@ -234,6 +234,7 @@ interface ChartRendererProps {
   forceDisableAnimation?: boolean; // Optional prop to disable animations contextually
   scaleFactor?: number; // New prop for proportional scaling of all elements
   tooltipZIndex?: number; // Z-index for tooltips (useful for modals)
+  isPreview?: boolean; // Shows purple border when in chart builder preview mode
 }
 
 const ChartRenderer = React.forwardRef<HTMLDivElement, ChartRendererProps>(({
@@ -243,7 +244,8 @@ const ChartRenderer = React.forwardRef<HTMLDivElement, ChartRendererProps>(({
   height = 400,
   forceDisableAnimation = false,
   scaleFactor = 1.0,
-  tooltipZIndex = 1000
+  tooltipZIndex = 1000,
+  isPreview = false
 }, ref) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const svgHeight = Math.max(height - 50, 0); // Reserve space for title/actions without forcing re-renders
@@ -408,11 +410,11 @@ const ChartRenderer = React.forwardRef<HTMLDivElement, ChartRendererProps>(({
       ref={ref}
       className="chart-container"
       style={{
-        background: 'rgba(255, 255, 255, 0.95)',
+        background: 'transparent',
         borderRadius: '8px',
         padding: width <= 350 || svgHeight <= 200 ? '6px' : '12px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-        border: '2px solid #8b5cf6',
+        boxShadow: 'none',
+        border: isPreview ? '3px solid #8b5cf6' : 'none',
         transition: 'all 0.3s ease',
         width: `${width}px`,
         height: `${height}px`,

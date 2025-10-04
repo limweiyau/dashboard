@@ -3202,6 +3202,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                 width={chartDimensions.previewWidth}
                 height={chartDimensions.previewHeight}
                 forceDisableAnimation={!isDataSelection && !isLegendMappingChange && !isChartTypeChange}
+                isPreview={true}
               />
             </div>
           ) : (
