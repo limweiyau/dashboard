@@ -98,9 +98,28 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
     const chartPanelWidth = maxContainerWidth * 0.65; // 65% for chart panel
     const availableWidth = chartPanelWidth - 40; // Subtract padding
 
-    // Ensure chart doesn't exceed container bounds and maintains good proportions
-    const containerWidth = Math.min(availableWidth * 0.95, window.innerWidth * 0.55);
-    const containerHeight = containerWidth * (2/3); // More compact 3:2 aspect ratio
+    // Height is the limiting factor - calculate based on max available height first
+    const maxChartHeight = 1200 - 100; // Leave some padding for container
+    const maxChartWidth = 1600; // Cap width at extreme screen sizes
+
+    // Calculate width based on available width, but prioritize height constraint
+    let proposedWidth = Math.min(availableWidth * 0.95, window.innerWidth * 0.55, maxChartWidth);
+    let proposedHeight = proposedWidth * (2/3); // 3:2 aspect ratio
+
+    // If height exceeds limit, use height as constraint and scale width down
+    if (proposedHeight > maxChartHeight) {
+      proposedHeight = maxChartHeight;
+      proposedWidth = proposedHeight * (3/2); // Maintain 3:2 aspect ratio
+    }
+
+    // Final width check for extreme screen sizes
+    if (proposedWidth > maxChartWidth) {
+      proposedWidth = maxChartWidth;
+      proposedHeight = proposedWidth * (2/3);
+    }
+
+    const containerWidth = proposedWidth;
+    const containerHeight = proposedHeight;
 
     return {
       containerWidth: Math.max(300, containerWidth), // Minimum width
@@ -141,6 +160,21 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const numericColumns = currentTableData.columns.filter(col => col.type === 'number');
   const categoricalColumns = currentTableData.columns.filter(col => col.type === 'string' || col.type === 'date');
   const allColumns = currentTableData.columns;
+
+  // Configuration panel sizing constants
+  const CONFIG_HEADER_HEIGHT = 56;
+  const TAB_NAV_HEIGHT = 64;
+  const FOOTER_HEIGHT = 82;
+  const PANEL_PADDING_ALLOWANCE = 24; // additional breathing room
+  const PANEL_MIN_HEIGHT = 560;
+
+  const computedPanelHeight = Math.min(
+    Math.max(
+      chartDimensions.previewHeight + CONFIG_HEADER_HEIGHT + TAB_NAV_HEIGHT + FOOTER_HEIGHT + PANEL_PADDING_ALLOWANCE,
+      PANEL_MIN_HEIGHT
+    ),
+    1200
+  );
 
   // Helper function to generate columns from data if not provided
   const generateColumnsFromData = (data: any[]): ColumnInfo[] => {
@@ -859,7 +893,6 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         {/* Configuration Panel - Adaptive sizing */}
         <div style={{
           width: layoutMode === 'vertical' ? '100%' : '35%',
-          height: layoutMode === 'vertical' ? 'auto' : 'auto',
           order: layoutMode === 'vertical' ? 2 : 1,
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
@@ -868,12 +901,10 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           display: 'flex',
           flexDirection: 'column',
           flexWrap: 'nowrap',
-          height: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 60, 420),
-          minHeight: layoutMode === 'vertical' ? 'auto' : Math.max(chartDimensions.previewHeight + 60, 420),
-          maxHeight: layoutMode === 'vertical' ? 'none' : Math.max(chartDimensions.previewHeight + 60, 420),
-          overflow: 'hidden',
-          willChange: 'height',
-          contain: 'layout'
+          height: layoutMode === 'vertical' ? 'auto' : computedPanelHeight,
+          minHeight: layoutMode === 'vertical' ? 'auto' : computedPanelHeight,
+          maxHeight: layoutMode === 'vertical' ? 'none' : computedPanelHeight,
+          overflow: 'hidden'
         }}>
           {/* Chart Type Selection - Compact Dropdown */}
           <div style={{
@@ -974,12 +1005,11 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               {/* Tab Content - Dynamic Height */}
               <div style={{
                 padding: '16px 20px',
-                height: Math.max(chartDimensions.previewHeight + 80, 500) - 160 - 80, // totalHeight - buttonHeight - headerSpace (reduced from 220+120 to 160+80)
-                maxHeight: Math.max(chartDimensions.previewHeight + 80, 500) - 160 - 80,
-                overflowY: 'auto',
+                flex: '1 1 0',
+                overflowY: layoutMode === 'vertical' ? 'visible' : 'auto',
                 overflowX: 'hidden',
-                minHeight: '250px',
-                flex: '1 1 auto'
+                minHeight: 0,
+                maxHeight: layoutMode === 'vertical' ? 'none' : Math.max(computedPanelHeight - (CONFIG_HEADER_HEIGHT + TAB_NAV_HEIGHT + FOOTER_HEIGHT), 220)
               }}>
                 {/* Data Tab */}
                 {activeTab === 'data' && (
@@ -3075,7 +3105,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           {/* Fixed Save/Cancel buttons - Always visible */}
           {selectedTemplate && (
             <div style={{
-              padding: '8px 16px',
+              padding: '12px 16px',
               borderTop: '1px solid rgba(148, 163, 184, 0.2)',
               background: 'rgba(248, 250, 252, 0.95)',
               flexShrink: 0,
@@ -3083,10 +3113,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               marginTop: 'auto',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 100,
-              position: 'relative',
-              transform: 'translateY(-8px) translateZ(0)'
+              justifyContent: 'center'
             }}>
               <div style={{
                 display: 'flex',
@@ -3142,7 +3169,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         {/* Chart Preview Panel - Adaptive sizing */}
         <div style={{
           width: layoutMode === 'vertical' ? '100%' : '65%',
-          minHeight: chartDimensions.previewHeight + 60,
+          minHeight: computedPanelHeight,
+          maxHeight: computedPanelHeight,
           order: layoutMode === 'vertical' ? 1 : 2,
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '12px',
@@ -3162,8 +3190,6 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               justifyContent: 'center',
               width: '100%',
               height: '100%',
-              minWidth: chartDimensions.previewWidth,
-              minHeight: chartDimensions.previewHeight,
               maxWidth: '100%',
               maxHeight: '100%'
             }}>

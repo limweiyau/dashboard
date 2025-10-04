@@ -16,7 +16,7 @@ async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     height: 900,
     width: 1400,
-    minWidth: 1200,
+    minWidth: 1350,
     minHeight: 800,
     webPreferences: {
       nodeIntegration: false,
