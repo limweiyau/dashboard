@@ -10,6 +10,8 @@ export interface ExportReportConfig {
   reportDate: string;
   includeCharts: boolean;
   includeAnalysis: boolean;
+  includeAIAnalysis: boolean;
+  includeAIInsights: boolean;
   analysisSummary: string;
   orientation: ExportOrientation;
   pageSize: ExportPageSize;

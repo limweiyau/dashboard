@@ -125,6 +125,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       reportDate: new Date().toISOString().split('T')[0],
       includeCharts: true,
       includeAnalysis: false,
+      includeAIAnalysis: true,
+      includeAIInsights: true,
       analysisSummary: 'No chart analysis is available yet',
       orientation: 'portrait',
       pageSize: 'A4',
@@ -1026,7 +1028,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   const handleOpenExportFlow = () => {
     const chartIds = projectData.charts.map(chart => chart.id);
     setSelectedExportChartIds(chartIds);
-    setExportStage('selection');
+    setExportStage('config'); // Skip selection stage, go straight to config
     setShowExportFlow(true);
     setExportError(null);
     setIsCapturingExportAssets(false);
@@ -1052,6 +1054,22 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
   const handleExportClearAll = () => {
     setSelectedExportChartIds([]);
+  };
+
+  const handleReorderCharts = (startIndex: number, endIndex: number) => {
+    console.log('handleReorderCharts called:', { startIndex, endIndex, totalCharts: projectData.charts.length });
+
+    const newCharts = [...projectData.charts];
+    const [movedChart] = newCharts.splice(startIndex, 1);
+    newCharts.splice(endIndex, 0, movedChart);
+
+    console.log('Before:', projectData.charts.map(c => c.name));
+    console.log('After:', newCharts.map(c => c.name));
+
+    onProjectUpdate({
+      ...projectData,
+      charts: newCharts
+    });
   };
 
   const handleExportSelectionContinue = async () => {
@@ -2335,8 +2353,10 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       {showExportFlow && exportStage === 'config' && (
         <ExportConfigurationModal
           config={exportConfig}
-          charts={selectedExportCharts}
-          chartThumbnails={selectedChartThumbnailsMap}
+          charts={projectData.charts}
+          selectedChartIds={selectedExportChartIds}
+          chartsWithAnalysis={chartsWithAnalysisSet}
+          chartThumbnails={chartThumbnails}
           analysisContentByChart={selectedChartAnalyses}
           analysisAvailableCount={analysisAvailableCount}
           totalSelectedCount={selectedExportChartIds.length}
@@ -2345,6 +2365,10 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           onConfigChange={handleExportConfigChange}
           onLogoUpload={handleExportLogoUpload}
           onLogoClear={handleExportLogoClear}
+          onToggleChart={handleToggleExportChart}
+          onSelectAllCharts={handleExportSelectAll}
+          onClearAllCharts={handleExportClearAll}
+          onReorderCharts={handleReorderCharts}
           onBack={handleExportBackToSelection}
           onCancel={handleCloseExportFlow}
           onGenerate={handleExportGenerate}

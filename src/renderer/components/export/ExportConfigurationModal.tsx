@@ -6,6 +6,8 @@ import { parseAnalysisContent } from '../../utils/analysisParser';
 interface ExportConfigurationModalProps {
   config: ExportReportConfig;
   charts: Chart[];
+  selectedChartIds: string[];
+  chartsWithAnalysis: Set<string>;
   chartThumbnails: Record<string, { dataUrl: string; capturedAt: number }>;
   analysisContentByChart: Record<string, string>;
   analysisAvailableCount: number;
@@ -15,6 +17,10 @@ interface ExportConfigurationModalProps {
   onConfigChange: (updates: Partial<ExportReportConfig>) => void;
   onLogoUpload: (file: File) => void;
   onLogoClear: () => void;
+  onToggleChart: (chartId: string) => void;
+  onSelectAllCharts: () => void;
+  onClearAllCharts: () => void;
+  onReorderCharts: (startIndex: number, endIndex: number) => void;
   onBack: () => void;
   onCancel: () => void;
   onGenerate: () => void;
@@ -105,6 +111,8 @@ type PreviewPage =
 const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   config,
   charts,
+  selectedChartIds,
+  chartsWithAnalysis,
   chartThumbnails,
   analysisContentByChart,
   analysisAvailableCount,
@@ -114,26 +122,79 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   onConfigChange,
   onLogoUpload,
   onLogoClear,
+  onToggleChart,
+  onSelectAllCharts,
+  onClearAllCharts,
+  onReorderCharts,
   onBack,
   onCancel,
   onGenerate
 }) => {
-  const [activeTab, setActiveTab] = useState<'report' | 'content' | 'layout' | 'branding'>('report');
+  const [activeTab, setActiveTab] = useState<'report' | 'content' | 'branding'>('report');
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [expandedChartId, setExpandedChartId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragEnter = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    // Don't clear dragOverIndex here - let dragEnter handle it
+    // This prevents flickering when moving between child elements
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+      console.log('Reordering:', draggedIndex, '->', dropIndex);
+      onReorderCharts(draggedIndex, dropIndex);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Filter only selected charts for preview
+  const selectedCharts = useMemo(() => {
+    return charts.filter(chart => selectedChartIds.includes(chart.id));
+  }, [charts, selectedChartIds]);
 
   const chunkedChartPages = useMemo(() => {
-    if (!config.includeCharts || charts.length === 0) {
+    if (!config.includeCharts || selectedCharts.length === 0) {
       return [] as Array<{ charts: Chart[]; startIndex: number }>;
     }
 
     const groups: Array<{ charts: Chart[]; startIndex: number }> = [];
-    for (let i = 0; i < charts.length; i += chartsPerPage) {
+    for (let i = 0; i < selectedCharts.length; i += chartsPerPage) {
       groups.push({
-        charts: charts.slice(i, i + chartsPerPage),
+        charts: selectedCharts.slice(i, i + chartsPerPage),
         startIndex: i
       });
     }
     return groups;
-  }, [config.includeCharts, charts]);
+  }, [config.includeCharts, selectedCharts]);
 
   const pages = useMemo<PreviewPage[]>(() => {
     const chartPages: PreviewPage[] = chunkedChartPages.map(group => ({
@@ -389,7 +450,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     )}
                   </div>
 
-                  {config.includeAnalysis && (analysisContent || insightsContent) && (
+                  {(config.includeAIAnalysis || config.includeAIInsights) && (analysisContent || insightsContent) && (
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -398,6 +459,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       overflow: 'hidden'
                     }}>
                       {/* Analysis Block */}
+                      {config.includeAIAnalysis && analysisContent && (
                       <div style={{
                         background: 'rgba(59, 130, 246, 0.08)',
                         borderRadius: '6px',
@@ -417,31 +479,23 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         }}>
                           📊 Analysis
                         </div>
-                        {narrativeParagraphs.length > 0 ? (
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '3px',
-                            fontSize: '9px',
-                            color: '#1f2937',
-                            lineHeight: 1.3
-                          }}>
-                            {narrativeParagraphs.map((text, idx) => (
-                              <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{text}</p>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{
-                            fontSize: '9px',
-                            color: '#64748b',
-                            fontStyle: 'italic'
-                          }}>
-                            No detailed analysis available for this chart.
-                          </div>
-                        )}
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '3px',
+                          fontSize: '9px',
+                          color: '#1f2937',
+                          lineHeight: 1.3
+                        }}>
+                          {narrativeParagraphs.map((text, idx) => (
+                            <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{text}</p>
+                          ))}
+                        </div>
                       </div>
+                      )}
 
                       {/* Insights Block */}
+                      {config.includeAIInsights && insightsContent && (
                       <div style={{
                         background: 'rgba(34, 197, 94, 0.08)',
                         borderRadius: '6px',
@@ -461,30 +515,21 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         }}>
                           💡 Insights
                         </div>
-                        {bulletLines.length > 0 ? (
-                          <div style={{
-                            margin: 0,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '3px',
-                            fontSize: '9px',
-                            color: '#1f2937',
-                            lineHeight: 1.3
-                          }}>
-                            {bulletLines.map((line, idx) => (
-                              <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{line}</p>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{
-                            fontSize: '9px',
-                            color: '#64748b',
-                            fontStyle: 'italic'
-                          }}>
-                            No key insights available for this chart.
-                          </div>
-                        )}
+                        <div style={{
+                          margin: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '3px',
+                          fontSize: '9px',
+                          color: '#1f2937',
+                          lineHeight: 1.3
+                        }}>
+                          {bulletLines.map((line, idx) => (
+                            <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{line}</p>
+                          ))}
+                        </div>
                       </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -773,8 +818,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               }}>
                 {[
                   { key: 'report', label: 'Report Settings' },
-                  { key: 'content', label: 'Content' },
-                  { key: 'layout', label: 'Layout' },
+                  { key: 'content', label: 'Content & Layout' },
                   { key: 'branding', label: 'Branding' }
                 ].map((tab) => (
                   <button
@@ -845,84 +889,454 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               />
 
               {/* Date and Classification Row */}
-              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ ...fieldLabelStyle, marginTop: '0px' }} htmlFor="report-date-input">
-                    Report Date
-                  </label>
-                  <input
-                    id="report-date-input"
-                    type="date"
-                    value={config.reportDate}
-                    onChange={handleInputChange('reportDate')}
-                    style={{
-                      ...textInputStyle,
-                      width: '100%'
-                    }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ ...fieldLabelStyle, marginTop: '0px' }} htmlFor="confidential-status-select">
-                    Classification
-                  </label>
-                  <select
-                    id="confidential-status-select"
-                    value={config.confidentialStatus}
-                    onChange={handleInputChange('confidentialStatus')}
-                    style={{
-                      ...textInputStyle,
-                      width: '100%',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="Public">Public</option>
-                    <option value="Internal">Internal</option>
-                    <option value="Confidential">Confidential</option>
-                    <option value="Restricted">Restricted</option>
-                  </select>
-                </div>
+              <label style={{ ...fieldLabelStyle, marginTop: '8px' }} htmlFor="report-date-input">
+                Report Date
+              </label>
+              <input
+                id="report-date-input"
+                type="date"
+                value={config.reportDate}
+                onChange={handleInputChange('reportDate')}
+                style={{
+                  ...textInputStyle,
+                  width: '100%',
+                  fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}
+              />
+
+              <label style={{ ...fieldLabelStyle, marginTop: '12px' }}>
+                Classification Level
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {[
+                  {
+                    value: 'Public',
+                    label: 'Public',
+                    description: 'No restrictions • Suitable for public distribution',
+                    color: '#6b7280',
+                    bg: '#f9fafb'
+                  },
+                  {
+                    value: 'Internal',
+                    label: 'Internal Use Only',
+                    description: 'Company personnel only • Not for external sharing',
+                    color: '#059669',
+                    bg: '#dcfce7'
+                  },
+                  {
+                    value: 'Confidential',
+                    label: 'Confidential',
+                    description: 'Authorized personnel • Sensitive business information',
+                    color: '#ea580c',
+                    bg: '#fed7aa'
+                  },
+                  {
+                    value: 'Restricted',
+                    label: 'Restricted',
+                    description: 'Highly restricted • Critical security clearance required',
+                    color: '#dc2626',
+                    bg: '#fee2e2'
+                  }
+                ].map((level) => {
+                  const isSelected = config.confidentialStatus === level.value;
+                  return (
+                    <button
+                      key={level.value}
+                      type="button"
+                      onClick={() => onConfigChange({ confidentialStatus: level.value as ConfidentialStatus })}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: isSelected ? `2px solid ${level.color}` : '2px solid transparent',
+                        background: isSelected ? level.bg : '#f9fafb',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        textAlign: 'left'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = '#f3f4f6';
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = '#f9fafb';
+                          e.currentTarget.style.borderColor = 'transparent';
+                        }
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: isSelected ? level.color : '#1f2937',
+                        marginBottom: '2px'
+                      }}>
+                        {level.label}
+                      </div>
+                      <div style={{
+                        fontSize: '11px',
+                        color: isSelected ? level.color : '#6b7280',
+                        lineHeight: 1.4,
+                        opacity: isSelected ? 0.9 : 0.8
+                      }}>
+                        {level.description}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             )}
 
-            {/* Content Options Tab */}
+            {/* Content & Layout Tab */}
             {activeTab === 'content' && (
-              <div style={cardContainerStyle}>
-                <div style={cardTitleStyle}>Content Options</div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#0f172a', marginTop: '0px', marginBottom: '12px' }}>
-                  <input
-                    type="checkbox"
-                    checked={config.includeCharts}
-                    onChange={handleInputChange('includeCharts')}
-                  />
-                  Include Charts in Report
-                </label>
-
-                <label
-                  style={{
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* Chart Selection & AI Content */}
+                <div style={cardContainerStyle}>
+                  <div style={{
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: '10px',
-                    fontSize: '14px',
-                    color: includeAnalysisDisabled ? '#94a3b8' : '#0f172a',
-                    marginTop: '12px'
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={config.includeAnalysis}
-                    onChange={handleInputChange('includeAnalysis')}
-                    disabled={includeAnalysisDisabled}
-                  />
-                  <span style={includeAnalysisDisabled ? disabledCheckboxLabelStyle : undefined}>
-                    Include AI Analysis Insights
-                  </span>
-                </label>
-              </div>
-            )}
+                    marginBottom: '12px'
+                  }}>
+                    <div style={cardTitleStyle}>Chart Selection & AI Content</div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={onSelectAllCharts}
+                        style={{
+                          border: '1px solid #e2e8f0',
+                          background: 'white',
+                          color: '#64748b',
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={onClearAllCharts}
+                        style={{
+                          border: '1px solid #e2e8f0',
+                          background: 'white',
+                          color: '#64748b',
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
 
-            {/* Layout Options Tab */}
-            {activeTab === 'layout' && (
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#6b7280',
+                    marginBottom: '8px',
+                    fontStyle: 'italic'
+                  }}>
+                    Drag and drop charts to reorder them in the report
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    maxHeight: '400px',
+                    overflowY: 'auto',
+                    padding: '2px'
+                  }}>
+                    {charts.map((chart, index) => {
+                    const selected = selectedChartIds.includes(chart.id);
+                    const hasAnalysis = chartsWithAnalysis.has(chart.id);
+                    const thumbnail = chartThumbnails[chart.id];
+                    const isDragging = draggedIndex === index;
+                    const isDraggedOver = dragOverIndex === index;
+
+                    return (
+                      <div key={chart.id} style={{ position: 'relative' }}>
+                        {/* Drop indicator above - show when dragging from below */}
+                        {isDraggedOver && draggedIndex !== null && draggedIndex > index && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '-6px',
+                            left: 0,
+                            right: 0,
+                            height: '3px',
+                            background: '#3b82f6',
+                            borderRadius: '2px',
+                            zIndex: 10,
+                            boxShadow: '0 0 8px rgba(59, 130, 246, 0.5)'
+                          }} />
+                        )}
+
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragEnter={(e) => handleDragEnter(e, index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, index)}
+                          onDragEnd={handleDragEnd}
+                          style={{
+                            borderRadius: '8px',
+                            border: selected ? '2px solid #34d399' : '1px solid #e5e7eb',
+                            background: isDragging ? 'rgba(59, 130, 246, 0.1)' : selected ? 'rgba(16, 185, 129, 0.04)' : 'white',
+                            overflow: 'hidden',
+                            transition: 'all 0.1s ease',
+                            opacity: isDragging ? 0.5 : 1,
+                            cursor: 'move'
+                          }}
+                        >
+                        {/* Chart Header */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '12px',
+                            background: selected ? 'rgba(16, 185, 129, 0.06)' : '#fafbfc'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => onToggleChart(chart.id)}
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                          />
+
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              color: '#0f172a'
+                            }}>
+                              {chart.name || 'Untitled Chart'}
+                            </div>
+                          </div>
+
+                          <span style={{
+                            borderRadius: '999px',
+                            padding: '4px 10px',
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            color: chart.type?.toLowerCase() === 'bar' ? '#3b82f6' : chart.type?.toLowerCase() === 'pie' ? '#f59e0b' : '#6b7280',
+                            background: chart.type?.toLowerCase() === 'bar' ? '#dbeafe' : chart.type?.toLowerCase() === 'pie' ? '#fef3c7' : '#f3f4f6',
+                            border: `1px solid ${chart.type?.toLowerCase() === 'bar' ? '#93c5fd' : chart.type?.toLowerCase() === 'pie' ? '#fcd34d' : '#e5e7eb'}`,
+                            whiteSpace: 'nowrap',
+                            textTransform: 'uppercase'
+                          }}>
+                            {chart.type || 'Chart'}
+                          </span>
+                        </div>
+
+                        {/* AI Content Options - Only show if selected and has analysis */}
+                        {selected && hasAnalysis && (
+                          <div style={{
+                            borderTop: '1px solid #e5e7eb',
+                            background: '#f0f9ff'
+                          }}>
+                            {/* Expandable Header */}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedChartId(expandedChartId === chart.id ? null : chart.id);
+                              }}
+                              style={{
+                                padding: '10px 12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                cursor: 'pointer',
+                                transition: 'background 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = '#dbeafe';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                              }}
+                            >
+                              <div style={{
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: '#1e40af',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                              }}>
+                                AI Content Options
+                              </div>
+                              <div style={{
+                                fontSize: '12px',
+                                color: '#1e40af',
+                                transform: expandedChartId === chart.id ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s ease'
+                              }}>
+                                ▼
+                              </div>
+                            </div>
+
+                            {/* Expandable Content */}
+                            {expandedChartId === chart.id && (
+                              <div style={{
+                                padding: '12px'
+                              }}>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    fontSize: '12px',
+                                    color: '#0f172a',
+                                    marginBottom: '6px'
+                                  }}
+                                >
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleInputChange('includeAIAnalysis')({ target: { value: !config.includeAIAnalysis } } as any);
+                                    }}
+                                    style={{
+                                      width: '32px',
+                                      height: '18px',
+                                      borderRadius: '9px',
+                                      background: config.includeAIAnalysis ? '#10b981' : '#d1d5db',
+                                      position: 'relative',
+                                      cursor: 'pointer',
+                                      transition: 'background 0.2s ease',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: '14px',
+                                        height: '14px',
+                                        borderRadius: '50%',
+                                        background: 'white',
+                                        position: 'absolute',
+                                        top: '2px',
+                                        left: config.includeAIAnalysis ? '16px' : '2px',
+                                        transition: 'left 0.2s ease',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
+                                      }}
+                                    />
+                                  </div>
+                                  <span style={{ fontWeight: 500 }}>Detailed Analysis</span>
+                                </div>
+
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    fontSize: '12px',
+                                    color: '#0f172a'
+                                  }}
+                                >
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleInputChange('includeAIInsights')({ target: { value: !config.includeAIInsights } } as any);
+                                    }}
+                                    style={{
+                                      width: '32px',
+                                      height: '18px',
+                                      borderRadius: '9px',
+                                      background: config.includeAIInsights ? '#10b981' : '#d1d5db',
+                                      position: 'relative',
+                                      cursor: 'pointer',
+                                      transition: 'background 0.2s ease',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: '14px',
+                                        height: '14px',
+                                        borderRadius: '50%',
+                                        background: 'white',
+                                        position: 'absolute',
+                                        top: '2px',
+                                        left: config.includeAIInsights ? '16px' : '2px',
+                                        transition: 'left 0.2s ease',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
+                                      }}
+                                    />
+                                  </div>
+                                  <span style={{ fontWeight: 500 }}>Key Insights</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* No AI Content Available Message */}
+                        {selected && !hasAnalysis && (
+                          <div style={{
+                            padding: '10px 12px',
+                            borderTop: '1px solid #e5e7eb',
+                            background: '#fafafa'
+                          }}>
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#6b7280',
+                              fontStyle: 'italic'
+                            }}>
+                              No AI-generated content available for this chart
+                            </div>
+                          </div>
+                        )}
+                        </div>
+
+                        {/* Drop indicator below - show when dragging from above */}
+                        {isDraggedOver && draggedIndex !== null && draggedIndex < index && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-6px',
+                            left: 0,
+                            right: 0,
+                            height: '3px',
+                            background: '#3b82f6',
+                            borderRadius: '2px',
+                            zIndex: 10,
+                            boxShadow: '0 0 8px rgba(59, 130, 246, 0.5)'
+                          }} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  marginTop: '12px',
+                  padding: '8px 10px',
+                  background: '#f9fafb',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}>
+                  <span>{selectedChartIds.length} of {charts.length} charts selected</span>
+                  <span>{analysisAvailableCount} with AI content</span>
+                </div>
+              </div>
+
+              {/* Layout Options */}
               <div style={cardContainerStyle}>
                 <div style={cardTitleStyle}>Layout Options</div>
 
@@ -944,6 +1358,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   <option value="Letter">Letter</option>
                 </select>
               </div>
+            </div>
             )}
 
             {/* Branding Tab */}
