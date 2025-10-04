@@ -375,25 +375,52 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     const isCompactChart = ['pie', 'donut', 'gauge', 'circle'].some(keyword => type.includes(keyword));
 
+    // For ultrawide screens (>2400px), use flexbox with max 2 charts per row
+    const isUltrawide = containerWidth > 2400;
     const columns = containerWidth >= 880 ? 2 : 1;
     const horizontalPadding = 48; // combined page padding and gutter
-    const gap = 20;
-    const availableWidth = containerWidth - horizontalPadding - gap * (columns - 1);
-    const targetCardWidth = Math.floor(availableWidth / Math.max(columns, 1));
-    const fullRowWidth = columns > 1 ? availableWidth : targetCardWidth;
+    const gap = isUltrawide ? 40 : 20; // Increased gap for ultrawide screens
+
+    let availableWidth, targetCardWidth, fullRowWidth;
+
+    if (isUltrawide) {
+      // For ultrawide, calculate based on max 2 charts with their max widths
+      const maxChartWidth = 1200;
+      const maxCardWidth = maxChartWidth + 120; // chart width + padding
+      availableWidth = Math.min(containerWidth - horizontalPadding, (maxCardWidth * 2) + gap);
+      targetCardWidth = Math.floor((availableWidth - gap) / 2);
+      fullRowWidth = availableWidth;
+    } else {
+      availableWidth = containerWidth - horizontalPadding - gap * (columns - 1);
+      targetCardWidth = Math.floor(availableWidth / Math.max(columns, 1));
+      fullRowWidth = columns > 1 ? availableWidth : targetCardWidth;
+    }
 
     const builderPreviewWidth = Math.min(
       Math.max((viewportWidth * 0.6) - 40, 320),
       viewportWidth - 200
     );
 
-    // Use same width for all charts, but different heights
-    const previewWidth = Math.min(Math.max(builderPreviewWidth, minWidthForWideChart(viewportWidth)), fullRowWidth - 40);
+    // Use same width for all charts, but different heights with maximum constraints
+    const maxChartWidth = 1200; // Maximum chart width
+    const maxChartHeight = 800; // Maximum chart height for 16:9 ratio (1200 * 9/16 = 675, but allow some extra)
 
-    const chartWidth = Math.round(previewWidth);
-    // ALL charts in Your Charts section use same 16:9 aspect ratio
-    const baseHeight = Math.max(Math.round(chartWidth * 9 / 16), 480);
-    const chartHeight = baseHeight;
+    let proposedWidth = Math.min(Math.max(builderPreviewWidth, minWidthForWideChart(viewportWidth)), fullRowWidth - 40);
+    let proposedHeight = Math.max(Math.round(proposedWidth * 9 / 16), 480);
+
+    // Apply maximum constraints while maintaining 16:9 aspect ratio
+    if (proposedWidth > maxChartWidth) {
+      proposedWidth = maxChartWidth;
+      proposedHeight = Math.round(proposedWidth * 9 / 16);
+    }
+
+    if (proposedHeight > maxChartHeight) {
+      proposedHeight = maxChartHeight;
+      proposedWidth = Math.round(proposedHeight * 16 / 9);
+    }
+
+    const chartWidth = Math.round(proposedWidth);
+    const chartHeight = proposedHeight;
     const cardMinHeight = chartHeight + 130;
     const cardWidth = chartWidth + 120; // Increased significantly to accommodate 3 multi-select filters + gear icon
 
@@ -1610,11 +1637,15 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             </div>
           ) : (
             <div style={{
-              display: 'grid',
-              gap: '20px',
-              gridTemplateColumns: viewportWidth >= 880 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
-              width: '100%',
-              gridAutoFlow: 'row dense'
+              display: viewportWidth > 2400 ? 'flex' : 'grid',
+              flexDirection: viewportWidth > 2400 ? 'row' : undefined,
+              flexWrap: viewportWidth > 2400 ? 'wrap' : undefined,
+              justifyContent: viewportWidth > 2400 ? 'center' : undefined,
+              gap: viewportWidth > 2400 ? '40px 12px' : '20px', // row-gap column-gap for flex, regular gap for grid
+              gridTemplateColumns: viewportWidth > 2400 ? undefined : (viewportWidth >= 880 ? 'repeat(2, minmax(0, 1fr))' : '1fr'),
+              width: viewportWidth > 2400 ? '80%' : '100%',
+              gridAutoFlow: viewportWidth > 2400 ? undefined : 'row dense',
+              margin: viewportWidth > 2400 ? '0 auto' : undefined
             }}>
               {projectData.charts.map(chart => {
                 const config = chart.config;
@@ -1638,15 +1669,16 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                     border: '2px solid #e2e8f0',
                     overflow: 'hidden',
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
-                    width: '100%',
+                    width: viewportWidth > 2400 ? `${chartConfig.cardWidth}px` : '100%',
                     maxWidth: `${chartConfig.cardWidth}px`,
                     height: `${chartConfig.cardMinHeight}px`,
                     transition: 'all 0.2s ease',
                     position: 'relative',
                     display: 'flex',
                     flexDirection: 'column',
-                    gridColumn: gridSpan,
-                    margin: '0 auto'
+                    gridColumn: viewportWidth > 2400 ? undefined : gridSpan,
+                    margin: '0 auto',
+                    flexShrink: viewportWidth > 2400 ? 0 : undefined
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.08)';
