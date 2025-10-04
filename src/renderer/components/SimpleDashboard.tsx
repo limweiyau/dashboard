@@ -1025,13 +1025,52 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     }
   };
 
-  const handleOpenExportFlow = () => {
+  const handleOpenExportFlow = async () => {
     const chartIds = projectData.charts.map(chart => chart.id);
     setSelectedExportChartIds(chartIds);
+
+    // Calculate analysis summary
+    const totalSelected = chartIds.length;
+    const analysisCount = chartIds.reduce((count, chartId) => (
+      chartsWithAnalysisSet.has(chartId) ? count + 1 : count
+    ), 0);
+    const analysisSummary = `${analysisCount} of ${totalSelected} charts have analysis available`;
+
+    // Update export config with defaults
+    setExportConfig(prev => {
+      const defaultTitle = 'Title';
+      const shouldEnableAnalysisByDefault =
+        analysisCount > 0 && prev.analysisSummary === 'No chart analysis is available yet';
+      const nextIncludeAnalysis = analysisCount === 0
+        ? false
+        : shouldEnableAnalysisByDefault
+          ? true
+          : prev.includeAnalysis;
+
+      return {
+        ...prev,
+        reportTitle: prev.reportTitle && prev.reportTitle.trim().length > 0 ? prev.reportTitle : defaultTitle,
+        description: prev.description,
+        reportDate: prev.reportDate || new Date().toISOString().split('T')[0],
+        includeAnalysis: nextIncludeAnalysis,
+        analysisSummary
+      };
+    });
+
     setExportStage('config'); // Skip selection stage, go straight to config
     setShowExportFlow(true);
+    setIsCapturingExportAssets(true);
     setExportError(null);
-    setIsCapturingExportAssets(false);
+
+    // Capture thumbnails for all charts
+    try {
+      await captureChartThumbnails(chartIds, { force: false, scale: 2 });
+    } catch (error) {
+      console.error('Failed to prepare chart previews for export', error);
+      setExportError('Failed to prepare some chart previews. Please ensure charts are visible and try again.');
+    } finally {
+      setIsCapturingExportAssets(false);
+    }
   };
 
   const handleCloseExportFlow = () => {

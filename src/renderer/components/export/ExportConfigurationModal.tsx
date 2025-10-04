@@ -410,13 +410,13 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 
                   <div style={{
                     borderRadius: '12px',
-                    border: '1px solid rgba(148, 163, 184, 0.24)',
-                    background: '#f8fafc',
+                    border: '2px solid #a855f7',
+                    background: '#ffffff',
                     padding: '12px',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    height: '200px',
+                    height: '315px',
                     boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
                     flex: '0 0 auto'
                   }}>
@@ -425,11 +425,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         src={thumbnail.dataUrl}
                         alt={`Visualization for ${chart.name || 'chart'}`}
                         style={{
-                          width: '100%',
-                          height: '100%',
+                          width: '105%',
+                          height: '105%',
                           objectFit: 'contain',
                           borderRadius: '8px',
-                          background: '#ffffff'
+                          background: '#ffffff',
+                          marginLeft: '-8px'
                         }}
                       />
                     ) : (
@@ -461,31 +462,30 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       {/* Analysis Block */}
                       {config.includeAIAnalysis && analysisContent && (
                       <div style={{
-                        background: 'rgba(59, 130, 246, 0.08)',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(59, 130, 246, 0.2)',
-                        padding: '6px',
+                        background: 'linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)',
+                        borderRadius: '8px',
+                        border: '1px solid #bfdbfe',
+                        padding: '10px 12px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '4px'
+                        gap: '6px'
                       }}>
                         <div style={{
-                          fontSize: '10px',
+                          fontSize: '11px',
                           fontWeight: 600,
-                          color: '#0f172a',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
+                          color: '#1e40af',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
                         }}>
-                          📊 Analysis
+                          Analysis
                         </div>
                         <div style={{
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '3px',
-                          fontSize: '9px',
-                          color: '#1f2937',
-                          lineHeight: 1.3
+                          gap: '4px',
+                          fontSize: '10px',
+                          color: '#1e3a8a',
+                          lineHeight: 1.5
                         }}>
                           {narrativeParagraphs.map((text, idx) => (
                             <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{text}</p>
@@ -497,32 +497,31 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       {/* Insights Block */}
                       {config.includeAIInsights && insightsContent && (
                       <div style={{
-                        background: 'rgba(34, 197, 94, 0.08)',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(34, 197, 94, 0.2)',
-                        padding: '6px',
+                        background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+                        borderRadius: '8px',
+                        border: '1px solid #bbf7d0',
+                        padding: '10px 12px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '4px'
+                        gap: '6px'
                       }}>
                         <div style={{
-                          fontSize: '10px',
+                          fontSize: '11px',
                           fontWeight: 600,
-                          color: '#0f172a',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
+                          color: '#15803d',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
                         }}>
-                          💡 Insights
+                          Insights
                         </div>
                         <div style={{
                           margin: 0,
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '3px',
-                          fontSize: '9px',
-                          color: '#1f2937',
-                          lineHeight: 1.3
+                          gap: '4px',
+                          fontSize: '10px',
+                          color: '#166534',
+                          lineHeight: 1.5
                         }}>
                           {bulletLines.map((line, idx) => (
                             <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{line}</p>
