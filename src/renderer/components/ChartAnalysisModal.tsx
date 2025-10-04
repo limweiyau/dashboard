@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Chart, ProjectData } from '../types';
 import { ChartConfiguration, ChartData } from '../types/charts';
 import ChartRenderer from './charts/ChartRenderer';
+import { parseAnalysisContent } from '../utils/analysisParser';
 
 interface ChartAnalysisModalProps {
   chart: Chart;
@@ -216,18 +217,9 @@ const ChartAnalysisModal: React.FC<ChartAnalysisModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  // Parse analysis into sections
+  // Parse analysis into sections using shared utility
   const parseAnalysis = useCallback((analysisText: string) => {
-    const sections = analysisText.split(/(?:\n\s*){2,}/).filter(section => section.trim());
-    const cleanedSections = sections.map(section =>
-      section.replace(/^(Analysis|Insights|Recommendations?):\s*/i, '').trim()
-    ).filter(section => section.length > 0);
-
-    const analysisContent = cleanedSections[0] || '';
-    const insightsContent = cleanedSections.slice(1).join('\n\n') ||
-      (cleanedSections.length > 1 ? cleanedSections[cleanedSections.length - 1] : '');
-
-    return { analysisContent, insightsContent };
+    return parseAnalysisContent(analysisText);
   }, []);
 
   // State for editable content

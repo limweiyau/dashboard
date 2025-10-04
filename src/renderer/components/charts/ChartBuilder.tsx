@@ -974,11 +974,11 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               {/* Tab Content - Dynamic Height */}
               <div style={{
                 padding: '16px 20px',
-                height: Math.max(chartDimensions.previewHeight + 80, 500) - 220 - 120, // totalHeight - buttonHeight - headerSpace
-                maxHeight: Math.max(chartDimensions.previewHeight + 80, 500) - 220 - 120,
+                height: Math.max(chartDimensions.previewHeight + 80, 500) - 160 - 80, // totalHeight - buttonHeight - headerSpace (reduced from 220+120 to 160+80)
+                maxHeight: Math.max(chartDimensions.previewHeight + 80, 500) - 160 - 80,
                 overflowY: 'auto',
                 overflowX: 'hidden',
-                minHeight: '300px',
+                minHeight: '250px',
                 flex: '1 1 auto'
               }}>
                 {/* Data Tab */}
@@ -3086,7 +3086,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
               justifyContent: 'center',
               zIndex: 100,
               position: 'relative',
-              transform: 'translateZ(0)'
+              transform: 'translateY(-8px) translateZ(0)'
             }}>
               <div style={{
                 display: 'flex',

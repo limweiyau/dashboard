@@ -2324,7 +2324,9 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           onAnalysisUpdate={(analysisContent: string, insightsContent: string) => {
             if (modalChart) {
               const filterFingerprint = generateFilterFingerprint(modalChart);
-              const combinedAnalysis = [analysisContent, insightsContent].filter(Boolean).join('\n\n');
+              // Format with explicit headers for consistent parsing
+              const { formatAnalysisContent } = require('../utils/analysisParser');
+              const combinedAnalysis = formatAnalysisContent(analysisContent, insightsContent);
 
               setChartAnalyses(prev => ({
                 ...prev,

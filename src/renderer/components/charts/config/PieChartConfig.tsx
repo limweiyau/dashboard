@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChartTypeConfigProps } from './BaseChartConfig';
+import CustomSelect from '../../shared/CustomSelect';
 
 const PieChartConfig: React.FC<ChartTypeConfigProps> = ({
   config,
@@ -21,27 +22,17 @@ const PieChartConfig: React.FC<ChartTypeConfigProps> = ({
         }}>
           Category Field
         </label>
-        <select
+        <CustomSelect
           value={config.categoryField || ''}
-          onChange={(e) => {
+          onChange={(value) => {
             if (isDataSelection) {
               // Animation trigger logic would go here
             }
-            onConfigChange({ categoryField: e.target.value });
+            onConfigChange({ categoryField: value as string });
           }}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #d1d5db',
-            fontSize: '14px'
-          }}
-        >
-          <option value="">Select field...</option>
-          {columns.map(col => (
-            <option key={col.name} value={col.name}>{col.name}</option>
-          ))}
-        </select>
+          options={columns.map(col => ({ value: col.name, label: col.name }))}
+          placeholder="Select field..."
+        />
       </div>
 
       {/* Value Field Selection */}
@@ -55,27 +46,17 @@ const PieChartConfig: React.FC<ChartTypeConfigProps> = ({
         }}>
           Value Field
         </label>
-        <select
+        <CustomSelect
           value={config.valueField || ''}
-          onChange={(e) => {
+          onChange={(value) => {
             if (isDataSelection) {
               // Animation trigger logic would go here
             }
-            onConfigChange({ valueField: e.target.value });
+            onConfigChange({ valueField: value as string });
           }}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #d1d5db',
-            fontSize: '14px'
-          }}
-        >
-          <option value="">Select field...</option>
-          {numericColumns.map(col => (
-            <option key={col.name} value={col.name}>{col.name}</option>
-          ))}
-        </select>
+          options={numericColumns.map(col => ({ value: col.name, label: col.name }))}
+          placeholder="Select field..."
+        />
       </div>
 
       {/* Pie-specific Data Labels */}
@@ -110,23 +91,21 @@ const PieChartConfig: React.FC<ChartTypeConfigProps> = ({
               }}>
                 Label Format
               </label>
-              <select
+              <CustomSelect
                 value={config.dataLabelsFormat || 'percentage'}
-                onChange={(e) => onConfigChange({ dataLabelsFormat: e.target.value })}
+                onChange={(value) => onConfigChange({ dataLabelsFormat: value as string })}
+                options={[
+                  { value: 'percentage', label: 'Percentage (%)' },
+                  { value: 'value', label: 'Values' },
+                  { value: 'label', label: 'Labels Only' },
+                  { value: 'both', label: 'Label + Percentage' },
+                  { value: 'label-value', label: 'Label + Value' }
+                ]}
                 style={{
-                  width: '100%',
                   padding: '6px 8px',
-                  borderRadius: '4px',
-                  border: '1px solid #d1d5db',
                   fontSize: '12px'
                 }}
-              >
-                <option value="percentage">Percentage (%)</option>
-                <option value="value">Values</option>
-                <option value="label">Labels Only</option>
-                <option value="both">Label + Percentage</option>
-                <option value="label-value">Label + Value</option>
-              </select>
+              />
             </div>
           )}
         </div>

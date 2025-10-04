@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChartTypeConfigProps } from './BaseChartConfig';
+import CustomSelect from '../../shared/CustomSelect';
 
 const BarChartConfig: React.FC<ChartTypeConfigProps> = ({
   config,
@@ -21,27 +22,17 @@ const BarChartConfig: React.FC<ChartTypeConfigProps> = ({
         }}>
           X-Axis (Categories)
         </label>
-        <select
+        <CustomSelect
           value={config.xAxisField || ''}
-          onChange={(e) => {
+          onChange={(value) => {
             if (isDataSelection) {
               // Animation trigger logic would go here
             }
-            onConfigChange({ xAxisField: e.target.value });
+            onConfigChange({ xAxisField: value as string });
           }}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #d1d5db',
-            fontSize: '14px'
-          }}
-        >
-          <option value="">Select field...</option>
-          {columns.map(col => (
-            <option key={col.name} value={col.name}>{col.name}</option>
-          ))}
-        </select>
+          options={columns.map(col => ({ value: col, label: col }))}
+          placeholder="Select field..."
+        />
       </div>
 
       {/* Y-Axis Field Selection */}
@@ -55,27 +46,17 @@ const BarChartConfig: React.FC<ChartTypeConfigProps> = ({
         }}>
           Y-Axis (Values)
         </label>
-        <select
+        <CustomSelect
           value={config.yAxisField || ''}
-          onChange={(e) => {
+          onChange={(value) => {
             if (isDataSelection) {
               // Animation trigger logic would go here
             }
-            onConfigChange({ yAxisField: e.target.value });
+            onConfigChange({ yAxisField: value as string });
           }}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #d1d5db',
-            fontSize: '14px'
-          }}
-        >
-          <option value="">Select field...</option>
-          {numericColumns.map(col => (
-            <option key={col.name} value={col.name}>{col.name}</option>
-          ))}
-        </select>
+          options={numericColumns.map(col => ({ value: col.name, label: col.name }))}
+          placeholder="Select field..."
+        />
       </div>
 
       {/* Bar-specific configurations */}
@@ -143,24 +124,22 @@ const BarChartConfig: React.FC<ChartTypeConfigProps> = ({
               }}>
                 Label Format
               </label>
-              <select
+              <CustomSelect
                 value={config.dataLabelsFormat || 'value'}
-                onChange={(e) => onConfigChange({ dataLabelsFormat: e.target.value })}
+                onChange={(value) => onConfigChange({ dataLabelsFormat: value as string })}
+                options={[
+                  { value: 'value', label: 'Raw Values (123)' },
+                  { value: 'comma', label: 'Comma Format (1,234)' },
+                  { value: 'thousands', label: 'Thousands (1.2K)' },
+                  { value: 'millions', label: 'Millions (1.2M)' },
+                  { value: 'currency', label: 'Currency ($123)' },
+                  { value: 'decimal', label: 'Decimal (123.45)' }
+                ]}
                 style={{
-                  width: '100%',
                   padding: '6px 8px',
-                  borderRadius: '4px',
-                  border: '1px solid #d1d5db',
                   fontSize: '12px'
                 }}
-              >
-                <option value="value">Raw Values (123)</option>
-                <option value="comma">Comma Format (1,234)</option>
-                <option value="thousands">Thousands (1.2K)</option>
-                <option value="millions">Millions (1.2M)</option>
-                <option value="currency">Currency ($123)</option>
-                <option value="decimal">Decimal (123.45)</option>
-              </select>
+              />
             </div>
           )}
         </div>

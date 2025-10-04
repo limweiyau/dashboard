@@ -1,6 +1,7 @@
 import React, { ChangeEvent, useMemo, useState } from 'react';
 import { Chart } from '../../types';
 import { ExportReportConfig, ConfidentialStatus } from './types';
+import { parseAnalysisContent } from '../../utils/analysisParser';
 
 interface ExportConfigurationModalProps {
   config: ExportReportConfig;
@@ -308,50 +309,14 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             {page.charts.map((chart, index) => {
               const thumbnail = chartThumbnails[chart.id];
               const analysis = analysisContentByChart[chart.id]?.trim();
-              // Split on double line breaks, single line breaks, or sentence patterns that indicate new paragraphs
-              let paragraphs: string[] = [];
-              if (analysis) {
-                // First try splitting on double line breaks
-                let splitParagraphs = analysis.split(/\n\n+/).filter(Boolean);
 
-                // If we only got one paragraph, try splitting on single line breaks
-                if (splitParagraphs.length === 1) {
-                  splitParagraphs = analysis.split(/\n+/).filter(Boolean);
-                }
-
-                // If we still only have one paragraph, try to split on sentence patterns
-                if (splitParagraphs.length === 1) {
-                  // Look for patterns that indicate start of insights/recommendations
-                  const insightStarters = /\b(To improve|To increase|Focus on|Consider|Implement|Investigate|Analyze the|Target|Address|Recommend)/i;
-                  const match = analysis.match(insightStarters);
-                  if (match && match.index) {
-                    const analysisText = analysis.substring(0, match.index).trim();
-                    const insightsText = analysis.substring(match.index).trim();
-                    splitParagraphs = [analysisText, insightsText].filter(Boolean);
-                  }
-                }
-
-                paragraphs = splitParagraphs;
-              }
+              // Use shared parsing utility for consistent analysis/insights separation
+              const { analysisContent, insightsContent } = parseAnalysisContent(analysis || '');
               const chartPosition = page.startIndex + index + 1;
-              const bulletLines: string[] = [];
-              const narrativeParagraphs: string[] = [];
 
-              // Simple parsing: first paragraph = analysis, second paragraph = insights
-              paragraphs.forEach((paragraph, index) => {
-                const original = paragraph.trim();
-                const normalized = normalizeInsightText(original);
-                if (!normalized) {
-                  return;
-                }
-
-                // First paragraph goes to analysis, second and beyond go to insights
-                if (index === 0) {
-                  narrativeParagraphs.push(normalized);
-                } else {
-                  bulletLines.push(normalized);
-                }
-              });
+              // Normalize content by removing any header prefixes
+              const narrativeParagraphs = analysisContent ? [normalizeInsightText(analysisContent)] : [];
+              const bulletLines = insightsContent ? [normalizeInsightText(insightsContent)] : [];
 
               return (
                 <div key={chart.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%' }}>
@@ -423,7 +388,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     )}
                   </div>
 
-                  {config.includeAnalysis && paragraphs.length > 0 && (
+                  {config.includeAnalysis && (analysisContent || insightsContent) && (
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -461,7 +426,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                             lineHeight: 1.3
                           }}>
                             {narrativeParagraphs.map((text, idx) => (
-                              <p key={idx} style={{ margin: 0 }}>{text}</p>
+                              <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{text}</p>
                             ))}
                           </div>
                         ) : (
@@ -506,7 +471,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                             lineHeight: 1.3
                           }}>
                             {bulletLines.map((line, idx) => (
-                              <p key={idx} style={{ margin: 0 }}>{line}</p>
+                              <p key={idx} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{line}</p>
                             ))}
                           </div>
                         ) : (

@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Chart, Slicer, ProjectData, ChartSlicer } from '../types';
-import {
-  getTablesWithColumn,
-  getColumnValues,
-  createSlicer,
-  suggestFilterType
-} from '../utils/slicerUtils';
+import { getColumnValues, createSlicer, suggestFilterType } from '../utils/slicerUtils';
 
 interface ChartSlicerControlsProps {
   chart: Chart;
@@ -20,6 +15,8 @@ interface CompactFilterDropdownProps {
   onValueChange: (values: any[]) => void;
   onRemove: () => void;
 }
+
+const MAX_SLICERS_PER_CHART = 3;
 
 const CompactFilterDropdown: React.FC<CompactFilterDropdownProps> = ({
   slicer,
@@ -251,9 +248,10 @@ interface ColumnSelectProps {
   options: string[];
   placeholder: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }
 
-const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder, onChange }) => {
+const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder, onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -286,7 +284,15 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
   useEffect(() => {
     // Close dropdown if value was reset programmatically
     setIsOpen(false);
-  }, [value]);
+  }, [value, disabled]);
+
+  const isDisabled = disabled || options.length === 0;
+
+  useEffect(() => {
+    if (isDisabled) {
+      setIsOpen(false);
+    }
+  }, [isDisabled]);
 
   const selectedLabel = value || placeholder;
 
@@ -294,7 +300,10 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <button
         type="button"
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => {
+          if (isDisabled) return;
+          setIsOpen(prev => !prev);
+        }}
         style={{
           width: '100%',
           padding: '8px 12px',
@@ -302,11 +311,12 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
           borderRadius: '4px',
           fontSize: '14px',
           background: 'white',
-          color: value ? '#111827' : '#6b7280',
+          color: isDisabled ? '#9ca3af' : (value ? '#111827' : '#6b7280'),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          cursor: 'pointer'
+          cursor: isDisabled ? 'not-allowed' : 'pointer',
+          opacity: isDisabled ? 0.6 : 1
         }}
       >
         <span
@@ -320,12 +330,12 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
         >
           {selectedLabel}
         </span>
-        <span style={{ marginLeft: '8px', fontSize: '12px', color: '#6b7280' }}>
-          {isOpen ? '▲' : '▼'}
+        <span style={{ marginLeft: '8px', fontSize: '12px', color: isDisabled ? '#9ca3af' : '#6b7280' }}>
+          {isDisabled ? '─' : (isOpen ? '▲' : '▼')}
         </span>
       </button>
 
-      {isOpen && (
+      {isOpen && !isDisabled && (
         <div
           style={{
             position: 'absolute',
@@ -337,7 +347,7 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
             borderRadius: '6px',
             boxShadow: '0 8px 16px rgba(0, 0, 0, 0.08)',
             zIndex: 20,
-            maxHeight: '220px',
+            maxHeight: '120px',
             overflowY: 'auto'
           }}
         >
@@ -426,8 +436,8 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
     ? { id: 'main', columns: projectData.columns, data: projectData.data }
     : projectData.tables.find(t => t.id === chartTableId);
 
-  // Get available columns for this chart's table (excluding numeric columns)
-  const availableColumns = chartTable ? chartTable.columns
+  // Get all filterable columns for this chart's table (excluding numeric columns)
+  const filterableColumns = chartTable ? chartTable.columns
     .filter(col => {
       const values = getColumnValues(col.name, [chartTable]);
       const filterType = suggestFilterType(col.name, [chartTable]);
@@ -455,9 +465,9 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
     // Deduplicate by column name - keep the most recent one for each column
     const deduplicatedSlicers = new Map<string, Slicer>();
     slicers.forEach(slicer => {
-      const existing = deduplicatedSlicers.get(slicer.column);
+      const existing = deduplicatedSlicers.get(slicer.columnName);
       if (!existing || new Date(slicer.createdAt || '').getTime() > new Date(existing.createdAt || '').getTime()) {
-        deduplicatedSlicers.set(slicer.column, slicer);
+        deduplicatedSlicers.set(slicer.columnName, slicer);
       }
     });
 
@@ -473,9 +483,79 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
   const appliedSlicerIds = getAppliedSlicers();
   const appliedSlicers = projectData.slicers.filter(s => appliedSlicerIds.includes(s.id));
 
+  const activeColumns = new Set(appliedSlicers.map(slicer => slicer.columnName));
+  const availableColumns = filterableColumns.filter(column => !activeColumns.has(column));
+
+  const selectedColumnExistingSlicer = selectedColumn
+    ? applicableSlicers.find(slicer => slicer.columnName === selectedColumn)
+    : undefined;
+  const selectedColumnIsActive = selectedColumn
+    ? appliedSlicers.some(slicer => slicer.columnName === selectedColumn)
+    : false;
+  const limitReached = appliedSlicers.length >= MAX_SLICERS_PER_CHART;
+
+  const canSubmitSelectedColumn = Boolean(selectedColumn) && !selectedColumnIsActive && !limitReached && Boolean(chartTable);
+
+  const helperMessage = (() => {
+    if (!selectedColumn) {
+      return { text: '', color: '#6b7280' };
+    }
+
+    if (selectedColumnIsActive) {
+      return {
+        text: 'This column already has an active filter. Remove it before adding another.',
+        color: '#dc2626'
+      };
+    }
+
+    if (limitReached) {
+      return {
+        text: `Maximum of ${MAX_SLICERS_PER_CHART} filters reached. Remove one to add another.`,
+        color: '#dc2626'
+      };
+    }
+
+    if (selectedColumnExistingSlicer) {
+      return {
+        text: '',
+        color: '#1d4ed8'
+      };
+    }
+
+    return { text: '', color: '#6b7280' };
+  })();
+
   // Create a new chart-specific slicer
   const handleCreateSlicer = () => {
     if (!selectedColumn || !chartTable) return;
+
+    if (limitReached) {
+      alert(`You can only have ${MAX_SLICERS_PER_CHART} filters active per chart. Remove one before adding another.`);
+      return;
+    }
+
+    if (selectedColumnIsActive) {
+      alert(`A filter for "${selectedColumn}" is already active on this chart.`);
+      return;
+    }
+
+    if (selectedColumnExistingSlicer) {
+      const existingSlicerId = selectedColumnExistingSlicer.id;
+
+      if (appliedSlicerIds.includes(existingSlicerId)) {
+        alert(`A filter for "${selectedColumn}" is already active on this chart.`);
+        return;
+      }
+
+      if (appliedSlicers.some(slicer => slicer.columnName === selectedColumn)) {
+        alert(`A filter for "${selectedColumn}" is already active on this chart.`);
+        return;
+      }
+
+      handleToggleSlicer(existingSlicerId, true);
+      setSelectedColumn('');
+      return;
+    }
 
     // Generate a simple slicer name without chart details for compactness
     const slicerName = selectedColumn;
@@ -537,15 +617,12 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
 
     // Reset form
     setSelectedColumn('');
-    setShowAddSlicer(false);
   };
 
   // Toggle a slicer on/off for this chart
   const handleToggleSlicer = (slicerId: string, enabled: boolean) => {
-    const maxSlicersPerChart = 3;
-
-    if (enabled && appliedSlicerIds.length >= maxSlicersPerChart) {
-      alert(`Maximum of ${maxSlicersPerChart} filters allowed per chart`);
+    if (enabled && appliedSlicerIds.length >= MAX_SLICERS_PER_CHART) {
+      alert(`Maximum of ${MAX_SLICERS_PER_CHART} filters allowed per chart`);
       return;
     }
 
@@ -809,7 +886,7 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
           {compactShowLabel && (
             <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
-              🔍 Filters ({appliedSlicers.length}/3)
+              🔍 Filters ({appliedSlicers.length}/{MAX_SLICERS_PER_CHART})
             </span>
           )}
 
@@ -825,20 +902,19 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
 
           <button
             onClick={() => setShowAddSlicer(!showAddSlicer)}
-            disabled={appliedSlicers.length >= 3 && !showAddSlicer}
             style={{
-              background: (appliedSlicers.length >= 3 && !showAddSlicer) ? '#f8fafc' : '#f3f4f6',
-              color: (appliedSlicers.length >= 3 && !showAddSlicer) ? '#9ca3af' : '#374151',
+              background: (appliedSlicers.length >= MAX_SLICERS_PER_CHART && !showAddSlicer) ? '#f8fafc' : '#f3f4f6',
+              color: (appliedSlicers.length >= MAX_SLICERS_PER_CHART && !showAddSlicer) ? '#9ca3af' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
               padding: '4px 8px',
               fontSize: '12px',
-              cursor: (appliedSlicers.length >= 3 && !showAddSlicer) ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               fontWeight: '500'
             }}
-            title={appliedSlicers.length >= 3 ? 'Maximum filters reached (3/3)' : 'Manage filters'}
+            title={appliedSlicers.length >= MAX_SLICERS_PER_CHART ? `Maximum filters reached (${MAX_SLICERS_PER_CHART}/${MAX_SLICERS_PER_CHART}). Open to edit or remove filters.` : 'Manage filters'}
           >
             {showAddSlicer ? '✕' : '⚙️'}
           </button>
@@ -866,8 +942,10 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                 padding: '20px',
                 maxWidth: '600px',
                 width: '90%',
-                maxHeight: '80vh',
-                overflow: 'visible',
+                maxHeight: '95vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
                 position: 'relative'
               }}
             >
@@ -902,9 +980,10 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
 
               {/* Scrollable content area */}
               <div style={{
-                maxHeight: 'calc(80vh - 120px)', // Account for header and padding
-                overflow: 'auto',
-                paddingRight: '4px' // Space for scrollbar
+                flex: '0 1 auto',
+                overflowY: 'auto',
+                paddingRight: '4px', // Space for scrollbar
+                maxHeight: 'calc(95vh - 140px)'
               }}>
                 {/* Create New Filter */}
               <div style={{
@@ -917,8 +996,8 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                 <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
                   Create New Filter
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'end' }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'end', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '220px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                       Column to Filter
                     </label>
@@ -927,29 +1006,58 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                       options={availableColumns}
                       placeholder="Select column..."
                       onChange={setSelectedColumn}
+                      disabled={availableColumns.length === 0}
                     />
                   </div>
-                  <button
-                    onClick={handleCreateSlicer}
-                    disabled={!selectedColumn}
-                    style={{
-                      background: selectedColumn ? '#10b981' : '#9ca3af',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      padding: '8px 16px',
-                      fontSize: '14px',
-                      cursor: selectedColumn ? 'pointer' : 'not-allowed',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Create
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                    <button
+                      onClick={handleCreateSlicer}
+                      disabled={!canSubmitSelectedColumn}
+                      style={{
+                        background: canSubmitSelectedColumn ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#9ca3af',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '8px 8px',
+                        height: '34px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        cursor: canSubmitSelectedColumn ? 'pointer' : 'not-allowed',
+                        minWidth: '120px',
+                        boxShadow: canSubmitSelectedColumn ? '0 2px 4px rgba(16, 185, 129, 0.2)' : 'none',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      Create
+                    </button>
+                  </div>
                 </div>
+                {helperMessage.text && (
+                  <div style={{
+                    marginTop: '6px',
+                    fontSize: '11px',
+                    color: helperMessage.color,
+                    lineHeight: 1.4
+                  }}>
+                    {helperMessage.text}
+                  </div>
+                )}
               </div>
 
               {/* Active Filters */}
-              {appliedSlicers.length > 0 && (
+              {appliedSlicers.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '40px 20px',
+                  color: '#6b7280',
+                  fontSize: '14px',
+                  background: '#f9fafb',
+                  borderRadius: '6px',
+                  border: '1px dashed #d1d5db'
+                }}>
+                  Select a filter to get started
+                </div>
+              ) : (
                 <div>
                   <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
                     Active Filters
@@ -1010,37 +1118,6 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                 </div>
               )}
 
-              {/* Available Filters */}
-              {applicableSlicers.filter(s => !appliedSlicerIds.includes(s.id)).length > 0 && (
-                <div style={{ marginTop: '16px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
-                    Available Filters
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {applicableSlicers
-                      .filter(s => !appliedSlicerIds.includes(s.id))
-                      .map(slicer => (
-                        <button
-                          key={slicer.id}
-                          onClick={() => handleToggleSlicer(slicer.id, true)}
-                          disabled={appliedSlicerIds.length >= 3}
-                          style={{
-                            background: appliedSlicerIds.length >= 3 ? '#f8fafc' : '#dbeafe',
-                            color: appliedSlicerIds.length >= 3 ? '#9ca3af' : '#1e40af',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            cursor: appliedSlicerIds.length >= 3 ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          + {slicer.name}
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              )}
               </div> {/* End scrollable content area */}
             </div>
           </div>
@@ -1062,14 +1139,14 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
             🔍 Chart Filters
           </span>
           <span style={{
-            background: appliedSlicers.length >= 3 ? '#fef2f2' : '#dbeafe',
-            color: appliedSlicers.length >= 3 ? '#dc2626' : '#1e40af',
+            background: appliedSlicers.length >= MAX_SLICERS_PER_CHART ? '#fef2f2' : '#dbeafe',
+            color: appliedSlicers.length >= MAX_SLICERS_PER_CHART ? '#dc2626' : '#1e40af',
             padding: '2px 6px',
             borderRadius: '12px',
             fontSize: '11px',
             fontWeight: '500'
           }}>
-            {appliedSlicers.length}/3 active
+            {appliedSlicers.length}/{MAX_SLICERS_PER_CHART} active
           </span>
         </div>
         <button
@@ -1113,64 +1190,66 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
           }}>
             ⚙️ Create New Filter
           </div>
-          <select
-            value={selectedColumn}
-            onChange={(e) => setSelectedColumn(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 10px',
-              border: '1px solid #cbd5e1',
-              borderRadius: '6px',
-              fontSize: '12px',
-              marginBottom: '10px',
-              background: 'white',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="">🔽 Select column to filter...</option>
-            {availableColumns.map(column => (
-              <option key={column} value={column}>📊 {column}</option>
-            ))}
-          </select>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              onClick={handleCreateSlicer}
-              disabled={!selectedColumn}
-              style={{
-                background: selectedColumn ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#9ca3af',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                fontWeight: '500',
-                cursor: selectedColumn ? 'pointer' : 'not-allowed',
-                flex: 1,
-                boxShadow: selectedColumn ? '0 2px 4px rgba(16, 185, 129, 0.2)' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              ✨ Create Filter
-            </button>
-            <button
-              onClick={() => {
-                setShowAddSlicer(false);
-                setSelectedColumn('');
-              }}
-              style={{
-                background: '#f8fafc',
-                color: '#64748b',
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: helperMessage.text ? '4px' : '12px' }}>
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <ColumnSelect
+                value={selectedColumn}
+                options={availableColumns}
+                placeholder="Select column to filter..."
+                onChange={setSelectedColumn}
+                disabled={availableColumns.length === 0}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                onClick={handleCreateSlicer}
+                disabled={!canSubmitSelectedColumn}
+                style={{
+                  background: canSubmitSelectedColumn ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#9ca3af',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  cursor: canSubmitSelectedColumn ? 'pointer' : 'not-allowed',
+                  minWidth: '120px',
+                  boxShadow: canSubmitSelectedColumn ? '0 2px 4px rgba(16, 185, 129, 0.2)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ✨ Create Filter
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddSlicer(false);
+                  setSelectedColumn('');
+                }}
+                style={{
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
+          {helperMessage.text && (
+            <div style={{
+              marginBottom: '8px',
+              fontSize: '11px',
+              color: helperMessage.color,
+              lineHeight: 1.4
+            }}>
+              {helperMessage.text}
+            </div>
+          )}
         </div>
       )}
 
@@ -1275,48 +1354,6 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
         </div>
       )}
 
-      {/* Available Filters to Add */}
-      {applicableSlicers.filter(s => !appliedSlicerIds.includes(s.id)).length > 0 && (
-        <div style={{ marginTop: '12px' }}>
-          <div style={{
-            fontSize: '12px',
-            fontWeight: '600',
-            marginBottom: '6px',
-            color: '#475569',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            💡 Quick Add Filters
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {applicableSlicers
-              .filter(s => !appliedSlicerIds.includes(s.id))
-              .slice(0, 4)
-              .map(slicer => (
-                <button
-                  key={slicer.id}
-                  onClick={() => handleToggleSlicer(slicer.id, true)}
-                  disabled={appliedSlicerIds.length >= 3}
-                  style={{
-                    background: appliedSlicerIds.length >= 3 ? '#f8fafc' : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
-                    color: appliedSlicerIds.length >= 3 ? '#9ca3af' : '#1e40af',
-                    border: `1px solid ${appliedSlicerIds.length >= 3 ? '#e2e8f0' : '#93c5fd'}`,
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    fontWeight: '500',
-                    cursor: appliedSlicerIds.length >= 3 ? 'not-allowed' : 'pointer',
-                    boxShadow: appliedSlicerIds.length >= 3 ? 'none' : '0 1px 2px rgba(59, 130, 246, 0.1)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  + {slicer.name}
-                </button>
-              ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
