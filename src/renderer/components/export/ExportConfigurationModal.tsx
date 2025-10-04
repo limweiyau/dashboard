@@ -21,28 +21,28 @@ interface ExportConfigurationModalProps {
 }
 
 const cardTitleStyle: React.CSSProperties = {
-  fontSize: '14px',
+  fontSize: '13px',
   fontWeight: 600,
   color: '#0f172a',
-  marginBottom: '8px'
+  marginBottom: '12px'
 };
 
 const cardContainerStyle: React.CSSProperties = {
   background: 'white',
-  borderRadius: '12px',
-  border: '1px solid #e2e8f0',
-  padding: '20px',
-  marginBottom: '16px',
-  boxShadow: '0 4px 16px rgba(15, 23, 42, 0.08)',
+  borderRadius: '10px',
+  border: '1px solid #e5e7eb',
+  padding: '18px',
+  marginBottom: '12px',
+  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
   transition: 'all 0.2s ease'
 };
 
 const fieldLabelStyle: React.CSSProperties = {
-  fontSize: '13px',
+  fontSize: '12px',
   fontWeight: 600,
-  color: '#374151',
-  marginBottom: '8px',
-  marginTop: '12px',
+  color: '#475569',
+  marginBottom: '6px',
+  marginTop: '10px',
   display: 'block'
 };
 
@@ -50,18 +50,19 @@ const textInputStyle: React.CSSProperties = {
   width: '100%',
   borderRadius: '8px',
   border: '1px solid #d1d5db',
-  padding: '12px 14px',
-  fontSize: '14px',
+  padding: '10px 12px',
+  fontSize: '13px',
   color: '#0f172a',
   outline: 'none',
   transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-  backgroundColor: '#f9fafb'
+  backgroundColor: '#ffffff'
 };
 
 const textareaStyle: React.CSSProperties = {
   ...textInputStyle,
-  minHeight: '72px',
-  resize: 'vertical'
+  minHeight: '80px',
+  resize: 'vertical',
+  fontFamily: 'inherit'
 };
 
 const disabledCheckboxLabelStyle: React.CSSProperties = {
@@ -594,11 +595,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: '16px 20px',
-                    marginBottom: '32px',
+                    marginBottom: '16px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '4px',
+                    gap: '16px',
                     scrollbarWidth: 'thin',
                     scrollbarColor: '#64748b #475569'
                   }}
@@ -609,18 +610,13 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       style={{
                         width: previewDimensions.width,
                         height: previewDimensions.height,
-                        minHeight: previewDimensions.height,
-                        maxHeight: previewDimensions.height,
                         background: '#ffffff',
                         borderRadius: '14px',
-                        border: '2px solid #94a3b8',
                         boxShadow: '0 14px 32px rgba(15, 23, 42, 0.12)',
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
                         flexShrink: 0,
-                        transform: `scale(${previewDimensions.scale})`,
-                        transformOrigin: 'top center',
                         position: 'relative'
                       }}
                     >
@@ -845,7 +841,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 value={config.description}
                 onChange={handleInputChange('description')}
                 style={textareaStyle}
-                placeholder="Enter Description Here..."
+                placeholder="Brief overview of the report content..."
               />
 
               {/* Date and Classification Row */}
@@ -875,7 +871,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     onChange={handleInputChange('confidentialStatus')}
                     style={{
                       ...textInputStyle,
-                      width: '100%'
+                      width: '100%',
+                      cursor: 'pointer'
                     }}
                   >
                     <option value="Public">Public</option>
@@ -938,7 +935,9 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   onChange={handlePageSizeChange}
                   style={{
                     ...textInputStyle,
-                    width: 'auto'
+                    width: 'auto',
+                    padding: '8px 32px 8px 12px',
+                    cursor: 'pointer'
                   }}
                 >
                   <option value="A4">A4</option>
@@ -984,11 +983,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     style={{
                       width: '56px',
                       height: '36px',
-                      border: '1px solid #d1d5db',
+                      border: 'none',
                       borderRadius: '8px',
                       padding: 0,
                       cursor: 'pointer',
-                      background: '#ffffff'
+                      background: 'transparent'
                     }}
                     aria-label="Select cover accent colour"
                   />
