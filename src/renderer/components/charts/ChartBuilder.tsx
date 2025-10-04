@@ -1727,7 +1727,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           <label style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', marginBottom: '6px', display: 'block' }}>
                             Position
                           </label>
-                          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
                             {(() => {
                               // Smart position options based on chart type, like Excel
                               const getPositionOptions = () => {
@@ -1791,7 +1791,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                   padding: '4px 8px',
                                   border: chartConfig.dataLabelsPosition === option.value ? '2px solid #6366f1' : '1px solid #e5e7eb',
                                   borderRadius: '4px',
-                                  fontSize: '10px',
+                                  fontSize: '11px',
                                   fontWeight: '500',
                                   background: chartConfig.dataLabelsPosition === option.value ? '#eff6ff' : 'white',
                                   color: chartConfig.dataLabelsPosition === option.value ? '#6366f1' : '#6b7280',
@@ -1801,7 +1801,6 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  flex: 1,
                                   whiteSpace: 'nowrap'
                                 }}
                               >
