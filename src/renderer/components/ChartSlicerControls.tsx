@@ -59,52 +59,66 @@ const CompactFilterDropdown: React.FC<CompactFilterDropdownProps> = ({
   };
 
   return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          background: slicer.selectedValues.length > 0 ? '#dbeafe' : '#f8fafc',
-          color: slicer.selectedValues.length > 0 ? '#1e40af' : '#374151',
-          border: '1px solid #d1d5db',
-          borderRadius: '4px',
-          padding: '4px 8px',
-          fontSize: '12px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          maxWidth: '200px',
-          minWidth: '120px'
-        }}
-      >
-        <span style={{
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          flex: 1,
-          textAlign: 'left'
-        }}>
-          {getDisplayText()}
-        </span>
-        <span style={{ fontSize: '10px' }}>▼</span>
+    <div
+      ref={dropdownRef}
+      style={{
+        position: 'relative',
+        display: 'inline-block'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
         <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          style={{
+            background: slicer.selectedValues.length > 0 ? '#dbeafe' : '#f8fafc',
+            color: slicer.selectedValues.length > 0 ? '#1e40af' : '#374151',
+            border: '1px solid #d1d5db',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            fontSize: '12px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            maxWidth: '200px',
+            minWidth: '120px'
+          }}
+        >
+          <span
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flex: 1,
+              textAlign: 'left'
+            }}
+          >
+            {getDisplayText()}
+          </span>
+          <span style={{ fontSize: '10px' }}>▼</span>
+        </button>
+        <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
+            setIsOpen(false);
             onRemove();
           }}
           style={{
             background: 'none',
-            border: 'none',
-            color: 'inherit',
+            border: '1px solid #d1d5db',
+            borderRadius: '4px',
+            color: '#6b7280',
             cursor: 'pointer',
             fontSize: '10px',
-            padding: 0,
-            marginLeft: '4px'
+            padding: '4px 6px',
+            lineHeight: 1
           }}
         >
           ✕
         </button>
-      </button>
+      </div>
 
       {isOpen && (
         <div style={{
@@ -226,6 +240,170 @@ const CompactFilterDropdown: React.FC<CompactFilterDropdownProps> = ({
               </button>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface ColumnSelectProps {
+  value: string;
+  options: string[];
+  placeholder: string;
+  onChange: (value: string) => void;
+}
+
+const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    // Close dropdown if value was reset programmatically
+    setIsOpen(false);
+  }, [value]);
+
+  const selectedLabel = value || placeholder;
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        style={{
+          width: '100%',
+          padding: '8px 12px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          fontSize: '14px',
+          background: 'white',
+          color: value ? '#111827' : '#6b7280',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer'
+        }}
+      >
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+            textAlign: 'left'
+          }}
+        >
+          {selectedLabel}
+        </span>
+        <span style={{ marginLeft: '8px', fontSize: '12px', color: '#6b7280' }}>
+          {isOpen ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            background: 'white',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.08)',
+            zIndex: 20,
+            maxHeight: '220px',
+            overflowY: 'auto'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+              setIsOpen(false);
+            }}
+            style={{
+              width: '100%',
+              textAlign: 'left',
+              padding: '8px 12px',
+              background: value === '' ? '#eff6ff' : 'white',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '13px',
+              color: '#111827'
+            }}
+          >
+            Select column...
+          </button>
+          {options.map(option => {
+            const isActive = value === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  onChange(option);
+                  setIsOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 12px',
+                  background: isActive ? '#eff6ff' : 'white',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: '#111827',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isActive && <span style={{ color: '#2563eb' }}>✔</span>}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {option}
+                </span>
+              </button>
+            );
+          })}
+
+          {options.length === 0 && (
+            <div
+              style={{
+                padding: '12px',
+                fontSize: '12px',
+                color: '#6b7280',
+                textAlign: 'center'
+              }}
+            >
+              No columns available
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -667,32 +845,40 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
         </div>
         {/* Add Filter Modal */}
         {showAddSlicer && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}>
-            <div style={{
-              background: 'white',
-              borderRadius: '8px',
-              padding: '20px',
-              maxWidth: '600px',
-              width: '90%',
-              maxHeight: '80vh',
-              overflow: 'auto'
-            }}>
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2000
+            }}
+          >
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '8px',
+                padding: '20px',
+                maxWidth: '600px',
+                width: '90%',
+                maxHeight: '80vh',
+                overflow: 'visible',
+                position: 'relative'
+              }}
+            >
+              {/* Header - fixed at top */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '16px'
+                marginBottom: '16px',
+                borderBottom: '1px solid #e5e7eb',
+                paddingBottom: '12px'
               }}>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
                   🔍 Manage Chart Filters
@@ -714,7 +900,13 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                 </button>
               </div>
 
-              {/* Create New Filter */}
+              {/* Scrollable content area */}
+              <div style={{
+                maxHeight: 'calc(80vh - 120px)', // Account for header and padding
+                overflow: 'auto',
+                paddingRight: '4px' // Space for scrollbar
+              }}>
+                {/* Create New Filter */}
               <div style={{
                 background: '#f9fafb',
                 border: '1px solid #e5e7eb',
@@ -730,23 +922,12 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                       Column to Filter
                     </label>
-                    <select
+                    <ColumnSelect
                       value={selectedColumn}
-                      onChange={(e) => setSelectedColumn(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '14px',
-                        background: 'white'
-                      }}
-                    >
-                      <option value="">Select column...</option>
-                      {availableColumns.map(column => (
-                        <option key={column} value={column}>{column}</option>
-                      ))}
-                    </select>
+                      options={availableColumns}
+                      placeholder="Select column..."
+                      onChange={setSelectedColumn}
+                    />
                   </div>
                   <button
                     onClick={handleCreateSlicer}
@@ -860,6 +1041,7 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
                   </div>
                 </div>
               )}
+              </div> {/* End scrollable content area */}
             </div>
           </div>
         )}

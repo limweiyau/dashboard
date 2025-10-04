@@ -74,7 +74,7 @@ export class GeminiClient {
     return response.text();
   }
 
-  async generateChartInsights(chartData: any, chartConfig: any, modelName: string = 'gemini-1.5-flash'): Promise<string> {
+  async generateChartInsights(chartData: any, chartConfig: any, modelName: string = 'gemini-2.5-flash'): Promise<string> {
     if (!this.genAI) {
       throw new Error('API key not set');
     }
@@ -172,7 +172,7 @@ CRITICAL REQUIREMENTS:
     return await this.generateContent(prompt, modelName);
   }
 
-  async suggestChartTypes(data: any[], columns: any[], modelName: string = 'gemini-1.5-flash'): Promise<string[]> {
+  async suggestChartTypes(data: any[], columns: any[], modelName: string = 'gemini-2.5-flash'): Promise<string[]> {
     if (!this.genAI) {
       throw new Error('API key not set');
     }

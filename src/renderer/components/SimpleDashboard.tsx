@@ -1199,7 +1199,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     try {
       const geminiClient = new GeminiClient(settings.apiKeys.gemini);
-      const analysis = await geminiClient.generateChartInsights(chartData, chart.config);
+      const selectedModel = settings.selectedModels?.gemini || 'gemini-2.5-flash';
+      const analysis = await geminiClient.generateChartInsights(chartData, chart.config, selectedModel);
 
       setChartAnalyses(prev => ({
         ...prev,
@@ -2320,6 +2321,25 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             setModalChartData(null);
           }}
           onRegenerate={() => handleGenerateAnalysis(modalChart)}
+          onAnalysisUpdate={(analysisContent: string, insightsContent: string) => {
+            if (modalChart) {
+              const filterFingerprint = generateFilterFingerprint(modalChart);
+              const combinedAnalysis = [analysisContent, insightsContent].filter(Boolean).join('\n\n');
+
+              setChartAnalyses(prev => ({
+                ...prev,
+                [modalChart.id]: {
+                  ...prev[modalChart.id],
+                  [filterFingerprint]: {
+                    content: combinedAnalysis,
+                    isGenerating: false,
+                    error: undefined,
+                    generatedAt: Date.now()
+                  }
+                }
+              }));
+            }
+          }}
           isRegenerating={isAnalysisGenerating(modalChart)}
           appliedFilters={(() => {
             const appliedSlicerIds = modalChart.config.appliedSlicers || [];
