@@ -137,8 +137,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   const [showDataImport, setShowDataImport] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
-  const [selectedDateRange, setSelectedDateRange] = useState<string | null>(null);
-  const [selectedDateRanges, setSelectedDateRanges] = useState<string[]>([]);
   const analysisStorageKey = useMemo(() => `chart-analyses-${project?.id ?? 'default'}`, [project?.id]);
   const brandingStorageKey = useMemo(
     () => (project?.id ? `export-branding-${project.id}` : 'export-branding-default'),
@@ -432,7 +430,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   // Monitor filter changes and clear invalid analyses
   useEffect(() => {
     clearInvalidAnalyses();
-  }, [selectedDateRange, selectedDateRanges, projectData.charts]);
+  }, [projectData.charts]);
 
   useEffect(() => {
     setChartAnalyses(prev => {
@@ -539,8 +537,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     const filterState = {
       tableId: chartTableId, // Include table ID for multi-table isolation
-      dateRange: selectedDateRange,
-      dateRanges: selectedDateRanges,
       // Chart-specific date ranges
       chartDateRanges: appliedDateRanges
         .map(dr => ({
@@ -651,19 +647,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       ...projectData,
       dateRanges: updatedRanges
     });
-    setSelectedDateRanges(prev => prev.filter(rangeId => rangeId !== id));
-    if (selectedDateRange === id) {
-      setSelectedDateRange(null);
-    }
-  };
-
-  const handleDateRangeMultiSelect = (rangeIds: string[]) => {
-    setSelectedDateRanges(rangeIds);
-    if (rangeIds.length === 0) {
-      setSelectedDateRange(null);
-    } else if (!rangeIds.includes(selectedDateRange || '')) {
-      setSelectedDateRange(rangeIds[0]);
-    }
   };
 
   const validateChartConfig = (chart: Chart, config: ChartConfiguration): string | null => {
@@ -770,11 +753,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           unique: false
         })) : []);
     }
-
-    // Apply global date range filter (from top-level date range selector)
-    // NOTE: Global and chart-specific date ranges are applied with AND logic:
-    // Data must pass both the global filter AND the chart-specific filter
-    sourceData = applyDateRangeFilter(sourceData);
 
     // Apply chart-specific date ranges
     if (config.appliedDateRanges && config.appliedDateRanges.length > 0 && projectData.dateRanges) {
@@ -1059,44 +1037,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           }]
         };
     }
-  };
-
-  const applyDateRangeFilter = (data: any[]) => {
-    const activeDateRanges = selectedDateRanges.length > 0 ? selectedDateRanges : (selectedDateRange ? [selectedDateRange] : []);
-
-    if (activeDateRanges.length === 0 || !projectData.dateRanges) {
-      return data;
-    }
-
-    const dateRangeObjects = activeDateRanges
-      .map(rangeId => projectData.dateRanges.find(range => range.id === rangeId))
-      .filter((dr): dr is DateRange => dr !== undefined);
-
-    if (dateRangeObjects.length === 0) {
-      return data;
-    }
-
-    return data.filter(row => {
-      return dateRangeObjects.some(dateRange => {
-        const startDate = new Date(dateRange.startDate);
-        const endDate = new Date(dateRange.endDate);
-
-        // Validate that date range dates are valid
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false;
-
-        for (const [key, value] of Object.entries(row)) {
-          if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
-            const rowDate = new Date(value);
-            // Validate that the row date is valid
-            if (isNaN(rowDate.getTime())) continue;
-            if (rowDate >= startDate && rowDate <= endDate) {
-              return true;
-            }
-          }
-        }
-        return false;
-      });
-    });
   };
 
   const handleDataImport = (data: any[], columns: any[], fileName?: string) => {
@@ -2343,7 +2283,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                       gap: '16px',
                       flexWrap: 'wrap'
                     }}>
-                      {/* Date Filter */}
+                      {/* Date Range Filters */}
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -2357,13 +2297,25 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         <span style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937' }}>Date</span>
                         <DateRangeFilter
                           dateRanges={projectData.dateRanges || []}
-                          selectedRangeId={selectedDateRange}
-                          onRangeSelect={(rangeId) => {
-                            setSelectedDateRange(rangeId);
-                            setSelectedDateRanges(rangeId ? [rangeId] : []);
+                          selectedRangeId={null}
+                          onRangeSelect={() => {}}
+                          selectedRangeIds={chart.config.appliedDateRanges || []}
+                          onRangeMultiSelect={(rangeIds) => {
+                            const updatedChart = {
+                              ...chart,
+                              config: {
+                                ...chart.config,
+                                appliedDateRanges: rangeIds
+                              }
+                            };
+                            const updatedCharts = projectData.charts.map(c =>
+                              c.id === chart.id ? updatedChart : c
+                            );
+                            onProjectUpdate({
+                              ...projectData,
+                              charts: updatedCharts
+                            });
                           }}
-                          selectedRangeIds={selectedDateRanges}
-                          onRangeMultiSelect={handleDateRangeMultiSelect}
                           onDateRangeAdd={handleDateRangeAdd}
                           onDateRangeUpdate={handleDateRangeUpdate}
                           onDateRangeDelete={handleDateRangeDelete}
@@ -2372,7 +2324,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         />
                       </div>
 
-                      {/* Normal Filters */}
+                      {/* Filters */}
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -2463,27 +2415,35 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                            border: '2px dashed #cbd5e1',
-                            borderRadius: '8px'
+                            background: 'transparent'
                           }}>
                             <div style={{
-                              fontSize: '14px',
-                              marginBottom: '8px',
-                              fontWeight: '600',
-                              color: '#6b7280',
-                              background: '#f3f4f6',
-                              padding: '8px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
+                              display: 'flex',
+                              flexDirection: 'column',
                               alignItems: 'center',
-                              gap: '6px'
+                              gap: '16px'
                             }}>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
                                 <circle cx="11" cy="11" r="8"/>
                                 <path d="M21 21l-4.35-4.35"/>
                               </svg>
-                              No Data Found
+                              <div style={{
+                                fontSize: '18px',
+                                fontWeight: '600',
+                                color: '#64748b',
+                                letterSpacing: '0.02em'
+                              }}>
+                                No Data Found
+                              </div>
+                              <div style={{
+                                fontSize: '14px',
+                                fontWeight: '400',
+                                color: '#94a3b8',
+                                textAlign: 'center',
+                                maxWidth: '250px'
+                              }}>
+                                Adjust filters to view data
+                              </div>
                             </div>
                           </div>
                         )}

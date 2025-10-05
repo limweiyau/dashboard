@@ -411,11 +411,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   <div style={{
                     borderRadius: '12px',
                     background: '#ffffff',
-                    padding: '12px',
+                    padding: '0 12px',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    minHeight: '270px',
+                    minHeight: '250px',
                     flex: '0 0 auto',
                     position: 'relative'
                   }}>
