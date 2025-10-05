@@ -1711,9 +1711,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             <strong>Columns:</strong> {table.columns.slice(0, 3).map((c: any) => c.name).join(', ')}
             {table.columns.length > 3 && ` +${table.columns.length - 3} more`}
           </div>
-          <div style={{ fontSize: '10px', color: '#9ca3af' }}>
-            Created: {new Date(table.createdAt).toLocaleDateString()}
-          </div>
+          {table.createdAt && (
+            <div style={{ fontSize: '10px', color: '#9ca3af' }}>
+              Created: {new Date(table.createdAt).toLocaleDateString()}
+            </div>
+          )}
         </div>
       </div>
     );
