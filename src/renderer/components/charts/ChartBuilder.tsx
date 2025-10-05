@@ -340,7 +340,17 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
             xAxisMin: config.xAxisMin,
             xAxisMax: config.xAxisMax,
             yAxisMin: config.yAxisMin,
-            yAxisMax: config.yAxisMax
+            yAxisMax: config.yAxisMax,
+
+            // Trend line configuration (for scatter plots)
+            showTrendLine: config.showTrendLine,
+            trendLineColor: config.trendLineColor,
+            trendLineWidth: config.trendLineWidth,
+            trendLineStyle: config.trendLineStyle,
+            showTrendLineStats: config.showTrendLineStats,
+            trendLineStatsOffsetX: config.trendLineStatsOffsetX,
+            trendLineStatsOffsetY: config.trendLineStatsOffsetY,
+            trendLineStatsFontSize: config.trendLineStatsFontSize
           });
 
           // Load padding state variables for 1:1 preview-to-display replica
@@ -613,22 +623,33 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
           }];
         }
       } else if (recipe.type === 'scatter') {
-        // Scatter plot - show preview with one axis if available
+        // Scatter plot - x and y both need to be numeric values in {x, y} format
+        labels = []; // Scatter plots don't use labels
+
         if (chartConfig.xAxisField && chartConfig.yAxisField) {
-          labels = currentTableData.data.map((_, index) => String(index));
+          const yField = Array.isArray(chartConfig.yAxisField) ? chartConfig.yAxisField[0] : chartConfig.yAxisField;
+
           datasets = [{
             label: 'Data Points',
-            data: currentTableData.data.map(row => {
-              const yField = Array.isArray(chartConfig.yAxisField) ? chartConfig.yAxisField[0] : chartConfig.yAxisField;
-              return Number(row[yField!]) || 0;
-            })
+            data: currentTableData.data.map(row => ({
+              x: Number(row[chartConfig.xAxisField!]) || 0,
+              y: Number(row[yField!]) || 0
+            }))
           }];
         } else {
-          // Show sample scatter data for preview when no fields are selected or only one field is selected
-          labels = Array.from({length: 8}, (_, i) => String(i));
+          // Show sample scatter data for preview when no fields are selected
           datasets = [{
             label: 'Preview',
-            data: [20, 35, 60, 45, 75, 30, 85, 50]
+            data: [
+              { x: 10, y: 20 },
+              { x: 25, y: 35 },
+              { x: 40, y: 60 },
+              { x: 35, y: 45 },
+              { x: 60, y: 75 },
+              { x: 20, y: 30 },
+              { x: 70, y: 85 },
+              { x: 45, y: 50 }
+            ]
           }];
         }
       } else {
@@ -787,7 +808,11 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         }
       }
 
-      if (labels.length > 0 && datasets.length > 0) {
+      // Scatter plots don't need labels, so check differently
+      const isScatterPlot = recipe.type === 'scatter';
+      const hasValidData = isScatterPlot ? datasets.length > 0 : (labels.length > 0 && datasets.length > 0);
+
+      if (hasValidData) {
         // Round all dataset values and auto-detect decimal formatting needs
         const roundedDatasets = datasets.map(dataset => {
           const roundedData = (dataset.data as any[]).map(value => {
@@ -826,9 +851,16 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         if (!isManualDecimals) {
           const detectedDecimals = roundedDatasets.reduce((maxDecimals, dataset) => {
             const datasetMax = dataset.data.reduce((max, value) => {
-              if (typeof value !== 'number') return max;
-              const decimals = decimalPlacesForValue(value);
-              return Math.max(max, decimals);
+              if (typeof value === 'number') {
+                const decimals = decimalPlacesForValue(value);
+                return Math.max(max, decimals);
+              } else if (value && typeof value === 'object' && 'x' in value && 'y' in value) {
+                // For scatter plots with {x, y} format
+                const xDecimals = decimalPlacesForValue((value as any).x);
+                const yDecimals = decimalPlacesForValue((value as any).y);
+                return Math.max(max, xDecimals, yDecimals);
+              }
+              return max;
             }, 0);
             return Math.max(maxDecimals, datasetMax);
           }, 0);
@@ -1138,7 +1170,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           }}
                         >
                           <option value="">Select field...</option>
-                          {categoricalColumns.map(col => (
+                          {(selectedTemplate.recipe.type === 'scatter' ? numericColumns : categoricalColumns).map(col => (
                             <option key={col.name} value={col.name}>{col.name} ({col.type})</option>
                           ))}
                         </select>
@@ -2534,7 +2566,9 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                         { key: 'x-axis', label: 'X-Axis' },
                         { key: 'y-axis', label: 'Y-Axis' },
                         ...(selectedTemplate?.recipe.requiredFields.series ?
-                          [{ key: 'series', label: 'Series' }] : [])
+                          [{ key: 'series', label: 'Series' }] : []),
+                        ...(selectedTemplate?.recipe.type === 'scatter' ?
+                          [{ key: 'trend-line', label: 'Trend Line' }] : [])
                       ].map((tab) => (
                         <button
                           key={tab.key}
@@ -3094,6 +3128,171 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                       </div>
                     )}
 
+                    {/* Trend Line Sub-tab */}
+                    {axesSubTab === 'trend-line' && selectedTemplate?.recipe.type === 'scatter' && (
+                      <div>
+                    {/* Trend Line Configuration */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px' }}>
+                        Trend Line Configuration
+                      </h3>
+
+                      {/* Enable Trend Line */}
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+                          <input
+                            type="checkbox"
+                            checked={!!chartConfig.showTrendLine}
+                            onChange={(e) => setChartConfig(prev => ({ ...prev, showTrendLine: e.target.checked }))}
+                            style={{ marginRight: '8px' }}
+                          />
+                          Show Trend Line
+                        </label>
+                        <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px', marginLeft: '24px' }}>
+                          Display a linear regression line showing the correlation between data points
+                        </p>
+                      </div>
+
+                      {/* Trend Line Settings - Only show when enabled */}
+                      {chartConfig.showTrendLine && (
+                        <>
+                          {/* Line Style */}
+                          <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '4px', color: '#6b7280' }}>
+                              Line Style
+                            </label>
+                            <select
+                              value={chartConfig.trendLineStyle || 'dashed'}
+                              onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineStyle: e.target.value as 'solid' | 'dashed' | 'dotted' }))}
+                              style={{
+                                width: '100%',
+                                padding: '6px 10px',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '6px',
+                                fontSize: '13px',
+                                background: 'white'
+                              }}
+                            >
+                              <option value="solid">Solid</option>
+                              <option value="dashed">Dashed</option>
+                              <option value="dotted">Dotted</option>
+                            </select>
+                          </div>
+
+                          {/* Color and Width */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '4px', color: '#6b7280' }}>
+                                Line Color
+                              </label>
+                              <input
+                                type="color"
+                                value={chartConfig.trendLineColor || '#ef4444'}
+                                onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineColor: e.target.value }))}
+                                style={{ width: '100%', height: '36px', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '4px', color: '#6b7280' }}>
+                                Line Width
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={chartConfig.trendLineWidth || 2}
+                                onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineWidth: Number(e.target.value) }))}
+                                style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Show Statistics */}
+                          <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                              <input
+                                type="checkbox"
+                                checked={!!chartConfig.showTrendLineStats}
+                                onChange={(e) => setChartConfig(prev => ({ ...prev, showTrendLineStats: e.target.checked }))}
+                                style={{ marginRight: '8px' }}
+                              />
+                              Show statistics on chart
+                            </label>
+                            <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px', marginLeft: '24px' }}>
+                              Display correlation statistics (R², correlation coefficient) in a box on the chart
+                            </p>
+                          </div>
+
+                          {/* Statistics Configuration */}
+                          {chartConfig.showTrendLineStats && (
+                            <div style={{ marginLeft: '24px', padding: '12px', background: '#f9fafb', borderRadius: '6px', marginBottom: '12px' }}>
+                              <h5 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px', color: '#374151' }}>
+                                Statistics Box Settings
+                              </h5>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                {/* Font Size */}
+                                <div>
+                                  <label style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px', display: 'block' }}>
+                                    Font Size
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="8"
+                                    max="16"
+                                    value={chartConfig.trendLineStatsFontSize || 11}
+                                    onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineStatsFontSize: Number(e.target.value) }))}
+                                    style={{ width: '100%' }}
+                                  />
+                                  <div style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center' }}>
+                                    {chartConfig.trendLineStatsFontSize || 11}px
+                                  </div>
+                                </div>
+
+                                {/* Horizontal Offset */}
+                                <div>
+                                  <label style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px', display: 'block' }}>
+                                    Left/Right
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="-100"
+                                    max="100"
+                                    value={chartConfig.trendLineStatsOffsetX || 0}
+                                    onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineStatsOffsetX: Number(e.target.value) }))}
+                                    style={{ width: '100%' }}
+                                  />
+                                  <div style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center' }}>
+                                    {chartConfig.trendLineStatsOffsetX > 0 ? '+' : ''}{chartConfig.trendLineStatsOffsetX || 0}px
+                                  </div>
+                                </div>
+
+                                {/* Vertical Offset */}
+                                <div>
+                                  <label style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px', display: 'block' }}>
+                                    Up/Down
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="-100"
+                                    max="100"
+                                    value={chartConfig.trendLineStatsOffsetY || 0}
+                                    onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineStatsOffsetY: Number(e.target.value) }))}
+                                    style={{ width: '100%' }}
+                                  />
+                                  <div style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center' }}>
+                                    {chartConfig.trendLineStatsOffsetY > 0 ? '+' : ''}{chartConfig.trendLineStatsOffsetY || 0}px
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                      </div>
+                    )}
+
                   </div>
                 )}
 
@@ -3126,7 +3325,6 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                         </label>
                       </div>
                     </div>
-
 
                     {/* Chart Opacity */}
                     <div style={{ marginBottom: '16px' }}>

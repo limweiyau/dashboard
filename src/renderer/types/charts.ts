@@ -110,6 +110,14 @@ export interface ChartConfiguration {
   paddingVertical?: number;
   chartOffsetX?: number;
   chartOffsetY?: number;
+  showTrendLine?: boolean;
+  trendLineColor?: string;
+  trendLineWidth?: number;
+  trendLineStyle?: 'solid' | 'dashed' | 'dotted';
+  showTrendLineStats?: boolean;
+  trendLineStatsOffsetX?: number;
+  trendLineStatsOffsetY?: number;
+  trendLineStatsFontSize?: number;
 }
 
 export interface ChartData {

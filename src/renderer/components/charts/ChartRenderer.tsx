@@ -169,14 +169,16 @@ const createAxesWithRotation = (
 // Utility function to get colors based on color management mode
 const getColors = (config: ChartConfiguration, data: ChartData): string[] => {
   // Determine if this is a single-dataset chart that should use per-category coloring
-  const isSingleDatasetChart = (config.templateId === 'simple-bar' || config.templateId === 'pie-chart' || config.templateId === 'area-chart') && data.datasets.length === 1;
+  const isSingleDatasetChart = (config.templateId === 'simple-bar' || config.templateId === 'pie-chart' || config.templateId === 'area-chart' || config.templateId === 'scatter-plot') && data.datasets.length === 1;
 
   // Determine coloring strategy based on legend mapping
   const usePerCategoryColors =
     config.legendMapping === 'categories' ||
     (!config.legendMapping && isSingleDatasetChart && (config.colorScheme === 'dynamic' || config.colorMode === 'individual'));
 
-  const itemCount = usePerCategoryColors ? data.labels.length : data.datasets.length;
+  // For scatter plots with single dataset, use data point count
+  const isScatterPlot = config.templateId === 'scatter-plot';
+  const itemCount = usePerCategoryColors ? (isScatterPlot ? data.datasets[0]?.data.length || 0 : data.labels.length) : data.datasets.length;
 
   // For Data Series mapping in single color mode, use single color
   if (config.legendMapping === 'series' && config.colorMode === 'single') {
@@ -251,7 +253,9 @@ const ChartRenderer = React.forwardRef<HTMLDivElement, ChartRendererProps>(({
   const svgHeight = Math.max(height - 50, 0); // Reserve space for title/actions without forcing re-renders
 
   useEffect(() => {
-    if (!svgRef.current || !data || !data.labels.length) return;
+    // Scatter plots don't use labels, so check datasets instead
+    const hasData = data && (data.labels.length > 0 || data.datasets.length > 0);
+    if (!svgRef.current || !hasData) return;
 
     // Simplified animation logic - trust the forceDisableAnimation flag from ChartBuilder
     const shouldAnimate = !forceDisableAnimation && config.animation;
@@ -1879,19 +1883,19 @@ function renderScatterPlot(
 
   const xScale = d3.scaleLinear()
     .domain([
-      config.xAxisMin !== undefined ? config.xAxisMin : xMin - xPadding,
+      config.xAxisMin !== undefined ? config.xAxisMin : Math.max(0, xMin - xPadding),
       config.xAxisMax !== undefined ? config.xAxisMax : xMax + xPadding
     ])
     .range([0, width]);
 
   const yScale = d3.scaleLinear()
     .domain([
-      config.yAxisMin !== undefined ? config.yAxisMin : yMin - yPadding,
+      config.yAxisMin !== undefined ? config.yAxisMin : 0,
       config.yAxisMax !== undefined ? config.yAxisMax : yMax + yPadding
     ])
     .range([height, 0]);
 
-  // Grid lines
+  // Grid lines - only horizontal for scatter plots
   if (config.showGrid) {
     g.selectAll('.grid-line-y')
       .data(yScale.ticks(5))
@@ -1904,47 +1908,8 @@ function renderScatterPlot(
       .attr('y2', d => yScale(d))
       .style('stroke', '#e5e7eb')
       .style('stroke-width', 1);
-
-    g.selectAll('.grid-line-x')
-      .data(xScale.ticks(5))
-      .enter()
-      .append('line')
-      .attr('class', 'grid-line-x')
-      .attr('x1', d => xScale(d))
-      .attr('x2', d => xScale(d))
-      .attr('y1', 0)
-      .attr('y2', height)
-      .style('stroke', '#e5e7eb')
-      .style('stroke-width', 1);
   }
 
-  // Add zero lines if data crosses zero (darker lines to show axis reference)
-  const xDomain = xScale.domain();
-  const yDomain = yScale.domain();
-
-  if (xDomain[0] <= 0 && xDomain[1] >= 0) {
-    g.append('line')
-      .attr('class', 'zero-line-x')
-      .attr('x1', xScale(0))
-      .attr('x2', xScale(0))
-      .attr('y1', 0)
-      .attr('y2', height)
-      .style('stroke', '#9ca3af')
-      .style('stroke-width', 1.5)
-      .style('opacity', 0.7);
-  }
-
-  if (yDomain[0] <= 0 && yDomain[1] >= 0) {
-    g.append('line')
-      .attr('class', 'zero-line-y')
-      .attr('x1', 0)
-      .attr('x2', width)
-      .attr('y1', yScale(0))
-      .attr('y2', yScale(0))
-      .style('stroke', '#9ca3af')
-      .style('stroke-width', 1.5)
-      .style('opacity', 0.7);
-  }
 
   // Axes with rotation support
   createAxesWithRotation(g, xScale, yScale, width, height, config);
@@ -1975,7 +1940,10 @@ function renderScatterPlot(
 
   // Scatter points
   data.datasets.forEach((dataset, seriesIndex) => {
-    const color = colors[seriesIndex % colors.length];
+    const baseColor = colors[seriesIndex % colors.length];
+
+    // For single dataset scatter plots, use individual colors for each point if available
+    const useIndividualColors = data.datasets.length === 1 && (config.colorMode === 'individual' || config.colorScheme === 'dynamic');
 
     const points = g.selectAll(`.point-${seriesIndex}`)
       .data(dataset.data)
@@ -1985,7 +1953,12 @@ function renderScatterPlot(
       .attr('cx', (d: any) => xScale(typeof d === 'object' ? d.x : 0))
       .attr('cy', (d: any) => yScale(typeof d === 'object' ? d.y : d))
       .attr('r', (config.animation && !forceDisableAnimation) ? 0 : 4)
-      .style('fill', color)
+      .style('fill', (d, i) => {
+        if (useIndividualColors) {
+          return colors[i % colors.length];
+        }
+        return config.colorMode === 'single' && config.singleColor ? config.singleColor : baseColor;
+      })
       .style('opacity', 0.8)
       .style('stroke', '#ffffff')
       .style('stroke-width', 1)
@@ -2002,10 +1975,15 @@ function renderScatterPlot(
         tooltip.transition().duration(200).style('opacity', 1);
         const xValue = typeof d === 'object' ? d.x : i;
         const yValue = typeof d === 'object' ? d.y : d;
+
+        // Use actual field names if available
+        const xLabel = config.xAxisField || 'X';
+        const yLabel = (Array.isArray(config.yAxisField) ? config.yAxisField[0] : config.yAxisField) || 'Y';
+
         tooltip.html(`
-          <div><strong>${dataset.label || 'Series'}</strong></div>
-          <div>X: ${formatNumberValue(xValue, config.numberFormat)}</div>
-          <div>Y: ${formatNumberValue(yValue, config.numberFormat)}</div>
+          <div><strong>${dataset.label || 'Data Point'}</strong></div>
+          <div>${xLabel}: ${formatNumberValue(xValue, config.numberFormat)}</div>
+          <div>${yLabel}: ${formatNumberValue(yValue, config.numberFormat)}</div>
         `)
           .style('left', (event.pageX + 10) + 'px')
           .style('top', (event.pageY - 10) + 'px');
@@ -2021,13 +1999,173 @@ function renderScatterPlot(
         tooltip.transition().duration(200).style('opacity', 0);
       });
 
-    // Add animation for scatter plot
+    // Add animation for scatter plot - fade in all points together
     if (config.animation && !forceDisableAnimation) {
-      points.transition()
-        .duration(600)
-        .delay((d, i) => i * 80)
+      points
+        .style('opacity', 0)
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 30)
         .ease(d3.easeCubicOut)
+        .style('opacity', 0.8)
         .attr('r', 4);
+    }
+
+    // Add trend/correlation line if enabled
+    if (config.showTrendLine && dataset.data.length > 1) {
+      const dataPoints = dataset.data.map((d: any) => ({
+        x: typeof d === 'object' ? d.x : 0,
+        y: typeof d === 'object' ? d.y : d
+      }));
+
+      // Calculate linear regression (y = mx + b) and correlation coefficient
+      const n = dataPoints.length;
+      const sumX = dataPoints.reduce((sum, p) => sum + p.x, 0);
+      const sumY = dataPoints.reduce((sum, p) => sum + p.y, 0);
+      const sumXY = dataPoints.reduce((sum, p) => sum + (p.x * p.y), 0);
+      const sumX2 = dataPoints.reduce((sum, p) => sum + (p.x * p.x), 0);
+      const sumY2 = dataPoints.reduce((sum, p) => sum + (p.y * p.y), 0);
+
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+
+      // Calculate R-squared (coefficient of determination)
+      const meanY = sumY / n;
+      const ssTotal = dataPoints.reduce((sum, p) => sum + Math.pow(p.y - meanY, 2), 0);
+      const ssResidual = dataPoints.reduce((sum, p) => {
+        const predicted = slope * p.x + intercept;
+        return sum + Math.pow(p.y - predicted, 2);
+      }, 0);
+      const rSquared = 1 - (ssResidual / ssTotal);
+      // Correlation has the same sign as the slope
+      const correlation = Math.sqrt(Math.abs(rSquared)) * (slope >= 0 ? 1 : -1);
+
+      // Get domain range for the line
+      const xMin = Math.min(...dataPoints.map(p => p.x));
+      const xMax = Math.max(...dataPoints.map(p => p.x));
+
+      const trendLineData = [
+        { x: xMin, y: slope * xMin + intercept },
+        { x: xMax, y: slope * xMax + intercept }
+      ];
+
+      const trendLineColor = config.trendLineColor || '#ef4444';
+      const trendLineWidth = config.trendLineWidth || 2;
+      const trendLineStyle = config.trendLineStyle || 'dashed';
+
+      // Map style to SVG stroke-dasharray
+      const dashArrayMap = {
+        'solid': 'none',
+        'dashed': '8,4',
+        'dotted': '2,3'
+      };
+
+      const line = d3.line<{x: number, y: number}>()
+        .x(d => xScale(d.x))
+        .y(d => yScale(d.y));
+
+      g.append('path')
+        .datum(trendLineData)
+        .attr('class', `trend-line-${seriesIndex}`)
+        .attr('fill', 'none')
+        .attr('stroke', trendLineColor)
+        .attr('stroke-width', trendLineWidth)
+        .attr('stroke-dasharray', dashArrayMap[trendLineStyle])
+        .attr('d', line)
+        .style('opacity', 0.7)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event) {
+          d3.select(this).style('opacity', 1);
+
+          const correlationStrength = Math.abs(correlation) > 0.7 ? 'Strong' : Math.abs(correlation) > 0.4 ? 'Moderate' : 'Weak';
+          const direction = correlation > 0 ? 'positive' : 'negative';
+
+          tooltip.transition().duration(200).style('opacity', 1);
+          tooltip.html(`
+            <div><strong>Trend Line Statistics</strong></div>
+            <div style="margin-top: 4px;">Slope: ${slope.toFixed(3)}</div>
+            <div>Intercept: ${intercept.toFixed(3)}</div>
+            <div>R²: ${rSquared.toFixed(3)}</div>
+            <div>Correlation: ${correlation.toFixed(3)}</div>
+            <div style="margin-top: 4px; color: ${correlation > 0 ? '#10b981' : '#ef4444'};">
+              ${correlationStrength} ${direction} correlation
+            </div>
+          `)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 10) + 'px');
+        })
+        .on('mouseout', function() {
+          d3.select(this).style('opacity', 0.7);
+          tooltip.transition().duration(200).style('opacity', 0);
+        });
+
+      // Display statistics on chart if enabled
+      if (config.showTrendLineStats) {
+        const correlationStrength = Math.abs(correlation) > 0.7 ? 'Strong' : Math.abs(correlation) > 0.4 ? 'Moderate' : 'Weak';
+        const direction = correlation > 0 ? 'positive' : 'negative';
+        const statsColor = correlation > 0 ? '#10b981' : '#ef4444';
+
+        // Position stats with offsets (default: top-right corner)
+        // Don't scale user offsets - they're relative positioning adjustments
+        const offsetX = config.trendLineStatsOffsetX || 0;
+        const offsetY = config.trendLineStatsOffsetY || 0;
+        const statsX = width - 10 + offsetX;
+        const statsY = 10 + offsetY;
+
+        const statsGroup = g.append('g')
+          .attr('class', `trend-stats-${seriesIndex}`)
+          .attr('transform', `translate(${statsX}, ${statsY})`);
+
+        // Background box
+        const statsText = [
+          `Slope: ${slope.toFixed(3)}`,
+          `Intercept: ${intercept.toFixed(3)}`,
+          `R²: ${rSquared.toFixed(3)}`,
+          `Correlation: ${correlation.toFixed(3)}`,
+          `${correlationStrength} ${direction}`
+        ];
+
+        const fontSize = Math.round((config.trendLineStatsFontSize || 11) * scaleFactor);
+        const lineHeight = fontSize + 3;
+        const padding = Math.max(6, fontSize * 0.7); // Dynamic padding based on font size
+
+        // Calculate dynamic box width based on longest text
+        const longestText = ['Trend Line Statistics', ...statsText].reduce((a, b) => a.length > b.length ? a : b);
+        const boxWidth = Math.max(120 * scaleFactor, longestText.length * fontSize * 0.6 + padding * 2);
+        const boxHeight = (statsText.length + 1) * lineHeight + padding * 2 + 4; // +1 for title, +4 for margin
+
+        statsGroup.append('rect')
+          .attr('x', -boxWidth)
+          .attr('y', 0)
+          .attr('width', boxWidth)
+          .attr('height', boxHeight)
+          .attr('fill', 'rgba(30, 41, 59, 0.95)')
+          .attr('stroke', 'none')
+          .attr('rx', 8)
+          .style('filter', 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.1)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.05))');
+
+        // Title (re-add on top)
+        statsGroup.append('text')
+          .attr('x', -boxWidth + padding)
+          .attr('y', padding + lineHeight)
+          .attr('font-size', `${fontSize}px`)
+          .attr('font-weight', '600')
+          .attr('fill', 'white')
+          .text('Trend Line Statistics');
+
+        // Stats text with margin-top effect
+        statsText.forEach((text, i) => {
+          const yPos = padding + lineHeight * (i + 2) + 4; // +2 for title, +4 for margin-top
+          const isLastItem = i === statsText.length - 1;
+          statsGroup.append('text')
+            .attr('x', -boxWidth + padding)
+            .attr('y', yPos)
+            .attr('font-size', `${fontSize}px`)
+            .attr('font-weight', isLastItem ? '600' : '400')
+            .attr('fill', isLastItem ? statsColor : 'rgba(255, 255, 255, 0.9)')
+            .text(text);
+        });
+      }
     }
 
     // Add data labels if enabled
@@ -2125,9 +2263,20 @@ function renderLegend(
 
   type LegendEntry = { label: string; color: string; textWidth: number };
   let legendItems: LegendEntry[];
-  if (showCategories) {
+
+  // Special handling for scatter plots with empty labels
+  const isScatterPlot = config.templateId === 'scatter-plot';
+
+  if (showCategories && !isScatterPlot) {
     // Data Categories: show category labels with corresponding colors
     legendItems = data.labels.map((label, i) => ({ label, color: colors[i % colors.length], textWidth: 0 }));
+  } else if (isScatterPlot && data.datasets.length === 1) {
+    // For single dataset scatter plots, create legend based on axis fields
+    const xLabel = config.xAxisField || 'X';
+    const yLabel = (Array.isArray(config.yAxisField) ? config.yAxisField[0] : config.yAxisField) || 'Y';
+    legendItems = [
+      { label: `${xLabel} vs ${yLabel}`, color: colors[0] || '#6366f1', textWidth: 0 }
+    ];
   } else {
     // Data Series: show dataset labels with corresponding colors
     legendItems = datasets.map((dataset, i) => ({
