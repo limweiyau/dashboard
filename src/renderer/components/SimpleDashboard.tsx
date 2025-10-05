@@ -1542,103 +1542,35 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           </div>
         ) : (
           <div
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('File dropped:', e.dataTransfer.files);
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onDragEnter={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
             style={{
               background: 'white',
-              borderRadius: '16px',
-              border: '3px dashed #e5e7eb',
-              padding: '64px 24px',
-              textAlign: 'center',
-              transition: 'all 0.3s ease',
-              cursor: 'pointer'
+              borderRadius: '12px',
+              border: '2px dashed #e5e7eb',
+              padding: '48px 24px',
+              textAlign: 'center'
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#4f46e5';
-              e.currentTarget.style.background = 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#e5e7eb';
-              e.currentTarget.style.background = 'white';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-            onClick={handleDirectFileSelect}
           >
-            {importError && (
-              <div style={{
-                color: '#dc2626',
-                background: '#fee2e2',
-                border: '1px solid #fecaca',
-                borderRadius: '12px',
-                padding: '16px',
-                marginBottom: '24px',
-                fontSize: '14px',
-                fontWeight: '500',
-                maxWidth: '500px',
-                margin: '0 auto 24px'
-              }}>
-                Error: {importError}
-              </div>
-            )}
             <div style={{
-              fontSize: '64px',
-              marginBottom: '24px',
-              background: importLoading ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-              borderRadius: '20px',
-              padding: '20px',
-              display: 'inline-block',
-              boxShadow: '0 4px 16px rgba(79, 70, 229, 0.3)'
+              fontSize: '48px',
+              marginBottom: '16px',
+              opacity: 0.4
             }}>
-              {importLoading ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                  <div className="spinner"></div>
-                  Processing...
-                </div>
-              ) : (
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
-                  <rect x="3" y="3" width="7" height="7" rx="1"/>
-                  <rect x="14" y="3" width="7" height="7" rx="1"/>
-                  <rect x="14" y="14" width="7" height="7" rx="1"/>
-                  <rect x="3" y="14" width="7" height="7" rx="1"/>
-                </svg>
-              )}
+              📊
             </div>
             <h3 style={{
-              margin: '0 0 12px 0',
-              fontSize: '24px',
-              fontWeight: '700',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent'
+              margin: '0 0 8px 0',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#374151'
             }}>
               No Tables Yet
             </h3>
             <p style={{
-              margin: '0 0 32px 0',
-              fontSize: '18px',
-              color: '#6b7280',
-              lineHeight: '1.6'
+              margin: 0,
+              fontSize: '14px',
+              color: '#9ca3af'
             }}>
-              {importLoading ? (
-                <>Processing file...</>
-              ) : (
-                <>Drop your CSV, JSON, or Excel file here<br />
-                <span style={{ fontSize: '16px', color: '#9ca3af' }}>
-                  or click to browse and upload a table
-                </span></>
-              )}
+              Click "Upload Table" above to get started
             </p>
           </div>
         )}
