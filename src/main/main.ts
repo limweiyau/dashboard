@@ -264,3 +264,13 @@ ipcMain.handle('read-file', async (_, filePath) => {
     throw error;
   }
 });
+
+ipcMain.handle('read-file-as-buffer', async (_, filePath) => {
+  try {
+    const buffer = await readFile(filePath);
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  } catch (error) {
+    console.error('Failed to read file as buffer:', error);
+    throw error;
+  }
+});

@@ -9,6 +9,7 @@ export interface ElectronAPI {
   saveSettings: (settings: any) => Promise<boolean>;
   selectFile: () => Promise<string | null>;
   readFile: (filePath: string) => Promise<string>;
+  readFileAsBuffer: (filePath: string) => Promise<ArrayBuffer>;
   onMenuAction: (callback: (action: string) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
@@ -22,6 +23,7 @@ const electronAPI: ElectronAPI = {
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   selectFile: () => ipcRenderer.invoke('select-file'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+  readFileAsBuffer: (filePath) => ipcRenderer.invoke('read-file-as-buffer', filePath),
   onMenuAction: (callback) => {
     ipcRenderer.on('menu-new-project', () => callback('new-project'));
     ipcRenderer.on('menu-open-project', () => callback('open-project'));
