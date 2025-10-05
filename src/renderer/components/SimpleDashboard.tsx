@@ -1453,215 +1453,98 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       onProjectUpdate(updatedData);
     };
 
+    // Combine main data and additional tables into a unified list
+    const allTables = [
+      ...(projectData.data?.length > 0 ? [{
+        id: 'main',
+        name: projectData.name || 'Main Dataset',
+        data: projectData.data,
+        columns: projectData.columns,
+        createdAt: '', // Main table doesn't need these
+        updatedAt: '',
+        isMain: true
+      }] : []),
+      ...(projectData.tables || []).map(t => ({ ...t, isMain: false }))
+    ];
+
+    const totalTableCount = allTables.length;
+
     return (
       <div style={{ padding: '24px' }}>
-        {projectData.data?.length > 0 ? (
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            border: '2px solid #d1d5db',
-            overflow: 'hidden',
-            fontSize: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '16px'
+        }}>
+          <h3 style={{
+            margin: 0,
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#1e293b'
           }}>
-            {/* Fixed Header Outside Scrollable Area */}
-            <div style={{
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              padding: '12px 16px',
-              borderBottom: '2px solid #e2e8f0',
-              position: 'sticky',
-              top: 0,
-              zIndex: 10
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {editingTableName ? (
-                      <input
-                        type="text"
-                        value={tableName}
-                        onChange={(e) => setTableName(e.target.value)}
-                        onBlur={handleTableNameSave}
-                        onKeyPress={(e) => e.key === 'Enter' && handleTableNameSave()}
-                        style={{
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          border: '1px solid #3b82f6',
-                          borderRadius: '4px',
-                          padding: '3px 6px',
-                          outline: 'none'
-                        }}
-                        autoFocus
-                      />
-                    ) : (
-                      <h3
-                        style={{
-                          margin: 0,
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          color: '#1e293b'
-                        }}
-                        onClick={() => setEditingTableName(true)}
-                      >
-                        {tableName || 'Dataset'}
-                      </h3>
-                    )}
-                    <button
-                      onClick={() => setEditingTableName(true)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        color: '#6b7280',
-                        padding: '2px',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>
-                  </div>
+            Tables ({totalTableCount})
+          </h3>
+          <button
+            onClick={() => setShowDataImport(true)}
+            style={{
+              padding: '8px 16px',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Upload Table
+          </button>
+        </div>
 
-                  <span style={{
-                    fontSize: '11px',
-                    color: '#9ca3af',
-                    fontWeight: '500'
-                  }}>
-                    {projectData.data?.length || 0} rows × {projectData.columns?.length || 0} columns
-                  </span>
-                </div>
-                <button
-                  onClick={handleDeleteData}
-                  style={{
-                    padding: '4px 8px',
-                    background: '#ef4444',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#dc2626'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = '#ef4444'}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px' }}>
-                    <polyline points="3,6 5,6 21,6"/>
-                    <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"/>
-                    <line x1="10" y1="11" x2="10" y2="17"/>
-                    <line x1="14" y1="11" x2="14" y2="17"/>
-                  </svg>
-                  Delete
-                </button>
-              </div>
-            </div>
-
-            {/* Scrollable Table Content */}
-            <div style={{
-              maxHeight: '350px',
-              overflow: 'auto'
-            }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                {/* Column Headers */}
-                <thead>
-                  <tr style={{ background: '#f9fafb' }}>
-                    {projectData.columns?.map((column) => (
-                      <th
-                        key={column.name}
-                        style={{
-                          padding: '8px 10px',
-                          textAlign: 'left',
-                          fontWeight: '600',
-                          borderBottom: '1px solid #e5e7eb',
-                          position: 'sticky',
-                          top: 0,
-                          background: '#f9fafb',
-                          whiteSpace: 'nowrap',
-                          fontSize: '11px',
-                          minWidth: '100px'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span>{column.name}</span>
-                          {(() => {
-                            const displayInfo = getColumnDisplayInfo(column.type);
-                            return (
-                              <span style={{
-                                fontSize: '8px',
-                                color: displayInfo.color,
-                                backgroundColor: displayInfo.backgroundColor,
-                                border: `1px solid ${displayInfo.borderColor}`,
-                                padding: '1px 4px',
-                                borderRadius: '6px',
-                                fontWeight: '700',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.025em'
-                              }}>
-                                {displayInfo.label}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectData.data?.slice(0, 10).map((row, index) => (
-                    <tr key={index} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      {projectData.columns?.map((column) => (
-                        <td
-                          key={column.name}
-                          style={{
-                            padding: '6px 10px',
-                            borderRight: '1px solid #f3f4f6',
-                            maxWidth: '120px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: '11px'
-                          }}
-                        >
-                          {row[column.name]?.toString() || ''}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {projectData.data?.length > 10 && (
-              <div style={{
-                padding: '8px 12px',
-                background: '#f9fafb',
-                textAlign: 'center',
-                fontSize: '11px',
-                color: '#6b7280',
-                fontWeight: '500'
-              }}>
-                <span style={{ color: '#9ca3af' }}>+{projectData.data.length - 10} more rows</span>
-              </div>
-            )}
+        {totalTableCount > 0 ? (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '16px'
+          }}>
+            {allTables.map(table => (
+              <TableCard
+                key={table.id}
+                table={table}
+                onDelete={table.isMain ? handleDeleteData : () => handleTableDelete(table.id)}
+                onRename={(newName) => {
+                  if (table.isMain) {
+                    const updatedData = { ...projectData, name: newName };
+                    onProjectUpdate(updatedData);
+                  } else {
+                    handleTableRename(table.id, newName);
+                  }
+                }}
+              />
+            ))}
           </div>
         ) : (
           <div
             onDrop={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              // Handle file drop here - you can implement drag and drop import
               console.log('File dropped:', e.dataTransfer.files);
             }}
             onDragOver={(e) => {
@@ -1703,7 +1586,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                 marginBottom: '24px',
                 fontSize: '14px',
                 fontWeight: '500',
-                maxWidth: '500px'
+                maxWidth: '500px',
+                margin: '0 auto 24px'
               }}>
                 Error: {importError}
               </div>
@@ -1743,7 +1627,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent'
             }}>
-              No Data Available
+              No Tables Yet
             </h3>
             <p style={{
               margin: '0 0 32px 0',
@@ -1756,93 +1640,12 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               ) : (
                 <>Drop your CSV, JSON, or Excel file here<br />
                 <span style={{ fontSize: '16px', color: '#9ca3af' }}>
-                  or click to browse and import data
+                  or click to browse and upload a table
                 </span></>
               )}
             </p>
           </div>
         )}
-
-        {/* Additional Tables Section */}
-        <div style={{ marginTop: '32px' }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '16px'
-          }}>
-            <h3 style={{
-              margin: 0,
-              fontSize: '18px',
-              fontWeight: '600',
-              color: '#1e293b'
-            }}>
-              Additional Tables ({projectData.tables?.length || 0})
-            </h3>
-            <button
-              onClick={() => setShowDataImport(true)}
-              style={{
-                padding: '8px 16px',
-                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)';
-                e.currentTarget.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Upload Table
-            </button>
-          </div>
-
-          {projectData.tables && projectData.tables.length > 0 ? (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '16px'
-            }}>
-              {projectData.tables.map(table => (
-                <TableCard
-                  key={table.id}
-                  table={table}
-                  onDelete={() => handleTableDelete(table.id)}
-                  onRename={(newName) => handleTableRename(table.id, newName)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div style={{
-              background: 'white',
-              border: '2px dashed #e5e7eb',
-              borderRadius: '8px',
-              padding: '32px',
-              textAlign: 'center',
-              color: '#9ca3af'
-            }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>📊</div>
-              <p style={{ margin: 0, fontSize: '14px' }}>
-                No additional tables yet. Upload a table to use in your charts.
-              </p>
-            </div>
-          )}
-        </div>
       </div>
     );
   };
@@ -1916,6 +1719,20 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                 onClick={() => setIsEditing(true)}
               >
                 📊 {table.name}
+                {table.isMain && (
+                  <span style={{
+                    fontSize: '9px',
+                    fontWeight: '700',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                    color: 'white',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Main
+                  </span>
+                )}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5 }}>
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
