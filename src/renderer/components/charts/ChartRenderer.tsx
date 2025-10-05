@@ -2179,6 +2179,7 @@ function renderLegend(
 
   let legendHeight = Math.max(lineHeight, legendItems.length * lineHeight);
   let legendRows: { items: LegendEntry[]; width: number }[] = [];
+  let legendMaxWidth = 0;
 
   if (customPosition) {
     // Use custom position and rotation
@@ -2226,6 +2227,10 @@ function renderLegend(
       legendHeight = legendRows.length * lineHeight;
     } else {
       legendHeight = Math.max(lineHeight, legendItems.length * lineHeight);
+      legendMaxWidth = legendItems.reduce((maxWidthSoFar, item) => {
+        const rowWidth = iconSize + iconGap + item.textWidth;
+        return Math.max(maxWidthSoFar, rowWidth);
+      }, legendMaxWidth);
     }
 
     const anchorPadding = Math.max(20, Math.min(30, width * 0.03));
@@ -2255,13 +2260,58 @@ function renderLegend(
         break;
     }
 
-    xPos += config.legendOffsetX || 0;
+    // Apply default offset for top-right position to pull it away from edge
+    let defaultOffsetX = 0;
+    if (verticalPosition === 'top' && horizontalPosition === 'right') {
+      defaultOffsetX = -80;
+    }
+
+    xPos += (config.legendOffsetX || 0) + defaultOffsetX;
     yPos += config.legendOffsetY || 0;
+
+    if (!horizontal) {
+      legendMaxWidth = legendMaxWidth > 0 ? legendMaxWidth : legendItems.reduce((maxWidthSoFar, item) => {
+        const rowWidth = iconSize + iconGap + item.textWidth;
+        return Math.max(maxWidthSoFar, rowWidth);
+      }, 0);
+    } else if (legendRows.length > 0) {
+      legendMaxWidth = legendRows.reduce((maxWidthSoFar, row) => Math.max(maxWidthSoFar, row.width), 0);
+    }
+
+    const maxRightEdge = width - anchorPadding;
+    const minLeftEdge = anchorPadding;
+
+    if (legendMaxWidth > 0) {
+      if (horizontalPosition === 'right') {
+        const desiredRightEdge = xPos + legendMaxWidth;
+        if (desiredRightEdge > maxRightEdge) {
+          xPos -= desiredRightEdge - maxRightEdge;
+        }
+        if (xPos < minLeftEdge) {
+          xPos = minLeftEdge;
+        }
+      } else if (horizontalPosition === 'left') {
+        if (xPos < minLeftEdge) {
+          xPos = minLeftEdge;
+        }
+        if (xPos + legendMaxWidth > maxRightEdge) {
+          xPos = Math.max(minLeftEdge, maxRightEdge - legendMaxWidth);
+        }
+      } else { // center
+        const halfWidth = legendMaxWidth / 2;
+        if (xPos - halfWidth < minLeftEdge) {
+          xPos = minLeftEdge + halfWidth;
+        }
+        if (xPos + halfWidth > maxRightEdge) {
+          xPos = maxRightEdge - halfWidth;
+        }
+      }
+    }
 
     legendTransform = `translate(${xPos}, ${yPos})`;
   }
 
-  const legend = svg.append('g')
+    const legend = svg.append('g')
     .attr('transform', legendTransform)
     .style('font-size', '12px');
 
@@ -2319,16 +2369,25 @@ function renderLegend(
     legendItems.forEach((item, i) => {
       const rowWidth = iconSize + iconGap + item.textWidth;
       let xOffset: number;
-      switch (horizontalPosition) {
-        case 'center':
-          xOffset = -rowWidth / 2;
-          break;
-        case 'right':
-          xOffset = -rowWidth;
-          break;
-        default:
-          xOffset = 0;
-          break;
+
+      // Always left-align legends when positioned at corners (top-left, top-right, bottom-left, bottom-right)
+      const isCornerPosition = (verticalPosition === 'top' || verticalPosition === 'bottom') &&
+                               (horizontalPosition === 'left' || horizontalPosition === 'right');
+
+      if (isCornerPosition) {
+        xOffset = 0; // Always left-align at corners
+      } else {
+        switch (horizontalPosition) {
+          case 'center':
+            xOffset = -rowWidth / 2;
+            break;
+          case 'right':
+            xOffset = -rowWidth;
+            break;
+          default:
+            xOffset = 0;
+            break;
+        }
       }
 
       const legendItem = legend.append('g')

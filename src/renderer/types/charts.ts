@@ -35,6 +35,7 @@ export interface ChartConfiguration {
   seriesField?: string;
   aggregation?: 'sum' | 'average' | 'count' | 'min' | 'max' | 'none';
   appliedSlicers?: string[]; // Array of slicer IDs applied to this chart
+  appliedDateRanges?: string[]; // Array of date range IDs applied to this chart
   colorScheme: string;
   colorMode?: 'scheme' | 'individual' | 'single';
   customColors?: string[];

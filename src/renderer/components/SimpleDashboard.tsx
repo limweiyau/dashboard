@@ -34,6 +34,88 @@ type StoredExportBranding = {
   logoFileName?: string | null;
 };
 
+const centerCanvasContent = (canvas: HTMLCanvasElement, padding = 24): HTMLCanvasElement => {
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return canvas;
+  }
+
+  const { width, height } = canvas;
+  const imageData = context.getImageData(0, 0, width, height);
+  const { data } = imageData;
+
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  const alphaThreshold = 1;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = (y * width + x) * 4;
+      if (data[index + 3] > alphaThreshold) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    context.save();
+    context.globalCompositeOperation = 'destination-over';
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.restore();
+    return canvas;
+  }
+
+  const sourceMinX = Math.max(0, minX - padding);
+  const sourceMinY = Math.max(0, minY - padding);
+  const sourceMaxX = Math.min(width - 1, maxX + padding);
+  const sourceMaxY = Math.min(height - 1, maxY + padding);
+
+  const sourceWidth = sourceMaxX - sourceMinX + 1;
+  const sourceHeight = sourceMaxY - sourceMinY + 1;
+
+  const targetWidth = Math.max(width, sourceWidth);
+  const targetHeight = Math.max(height, sourceHeight);
+
+  const targetCanvas = document.createElement('canvas');
+  targetCanvas.width = targetWidth;
+  targetCanvas.height = targetHeight;
+  const targetContext = targetCanvas.getContext('2d');
+  if (!targetContext) {
+    context.save();
+    context.globalCompositeOperation = 'destination-over';
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.restore();
+    return canvas;
+  }
+
+  targetContext.fillStyle = '#ffffff';
+  targetContext.fillRect(0, 0, targetWidth, targetHeight);
+
+  const offsetX = Math.round((targetWidth - sourceWidth) / 2);
+  const offsetY = Math.round((targetHeight - sourceHeight) / 2);
+
+  targetContext.drawImage(
+    canvas,
+    sourceMinX,
+    sourceMinY,
+    sourceWidth,
+    sourceHeight,
+    offsetX,
+    offsetY,
+    sourceWidth,
+    sourceHeight
+  );
+
+  return targetCanvas;
+};
+
 
 interface SimpleDashboardProps {
   project: Project;
@@ -95,6 +177,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     typeof window !== 'undefined' ? window.innerWidth : 1200
   );
   const [showDateRangeManager, setShowDateRangeManager] = useState(false);
+  const [viewingTable, setViewingTable] = useState<any | null>(null);
   const chartCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const chartContentRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const chartVisualizationRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -191,15 +274,24 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       }
 
       try {
+        const rect = element.getBoundingClientRect();
+        const captureWidth = Math.ceil(Math.max(rect.width, element.scrollWidth));
+        const captureHeight = Math.ceil(Math.max(rect.height, element.scrollHeight));
+
         const canvas = await html2canvas(element, {
-          backgroundColor: '#ffffff',
+          backgroundColor: null,
           scale,
           useCORS: true,
-          windowWidth: element.scrollWidth,
-          windowHeight: element.scrollHeight,
+          width: captureWidth,
+          height: captureHeight,
+          windowWidth: captureWidth,
+          windowHeight: captureHeight,
+          scrollX: 0,
+          scrollY: 0,
           logging: false
         });
-        const dataUrl = canvas.toDataURL('image/png');
+        const processedCanvas = centerCanvasContent(canvas);
+        const dataUrl = processedCanvas.toDataURL('image/png');
         const thumbnail = { dataUrl, capturedAt: Date.now() };
         chartThumbnailCache.current[chartId] = thumbnail;
         setChartThumbnails(prev => ({
@@ -441,10 +533,23 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     const appliedSlicerIds = chart.config.appliedSlicers || [];
     const appliedSlicers = projectData.slicers.filter(s => appliedSlicerIds.includes(s.id));
 
+    // Get chart-specific date ranges
+    const appliedDateRangeIds = chart.config.appliedDateRanges || [];
+    const appliedDateRanges = projectData.dateRanges?.filter(dr => appliedDateRangeIds.includes(dr.id)) || [];
+
     const filterState = {
       tableId: chartTableId, // Include table ID for multi-table isolation
       dateRange: selectedDateRange,
       dateRanges: selectedDateRanges,
+      // Chart-specific date ranges
+      chartDateRanges: appliedDateRanges
+        .map(dr => ({
+          id: dr.id,
+          name: dr.name,
+          startDate: dr.startDate,
+          endDate: dr.endDate
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id)), // Sort for consistent ordering
       // Only include slicers that actually filter data (have specific values selected)
       // and don't include slicers where all available values are selected (equivalent to no filter)
       slicers: appliedSlicers
@@ -561,10 +666,81 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     }
   };
 
+  const validateChartConfig = (chart: Chart, config: ChartConfiguration): string | null => {
+    // Validate table reference
+    if (config.tableId && config.tableId !== 'main') {
+      const tableExists = projectData.tables?.some(t => t.id === config.tableId);
+      if (!tableExists) {
+        return `Table '${config.tableId}' not found`;
+      }
+    }
+
+    // Validate field references
+    const chartTableId = config.tableId || 'main';
+    let sourceColumns = projectData.columns;
+
+    if (config.tableId && config.tableId !== 'main') {
+      const selectedTable = projectData.tables?.find(t => t.id === config.tableId);
+      if (selectedTable) {
+        sourceColumns = selectedTable.columns || [];
+      }
+    }
+
+    const columnNames = sourceColumns.map(c => c.name);
+
+    if (config.xAxisField && !columnNames.includes(config.xAxisField)) {
+      return `X-axis field '${config.xAxisField}' not found in table`;
+    }
+
+    // Validate yAxisField (can be string or string array)
+    if (config.yAxisField) {
+      const yAxisFields = Array.isArray(config.yAxisField) ? config.yAxisField : [config.yAxisField];
+      const invalidYFields = yAxisFields.filter(field => !columnNames.includes(field));
+      if (invalidYFields.length > 0) {
+        return `Y-axis field(s) '${invalidYFields.join(', ')}' not found in table`;
+      }
+    }
+
+    if (config.categoryField && !columnNames.includes(config.categoryField)) {
+      return `Category field '${config.categoryField}' not found in table`;
+    }
+
+    if (config.valueField && !columnNames.includes(config.valueField)) {
+      return `Value field '${config.valueField}' not found in table`;
+    }
+
+    // Validate date range references
+    if (config.appliedDateRanges && config.appliedDateRanges.length > 0) {
+      const availableRangeIds = projectData.dateRanges?.map(dr => dr.id) || [];
+      const invalidRanges = config.appliedDateRanges.filter(id => !availableRangeIds.includes(id));
+      if (invalidRanges.length > 0) {
+        return `Invalid date range(s): ${invalidRanges.join(', ')}`;
+      }
+    }
+
+    // Validate slicer references
+    if (config.appliedSlicers && config.appliedSlicers.length > 0) {
+      const availableSlicerIds = projectData.slicers?.map(s => s.id) || [];
+      const invalidSlicers = config.appliedSlicers.filter(id => !availableSlicerIds.includes(id));
+      if (invalidSlicers.length > 0) {
+        return `Invalid slicer(s): ${invalidSlicers.join(', ')}`;
+      }
+    }
+
+    return null; // No validation errors
+  };
+
   const generateChartData = (chart: Chart): ChartData | null => {
     const config = chart.config;
     if (!config || typeof config !== 'object') {
       return generateSampleData(chart.type);
+    }
+
+    // Validate chart configuration
+    const validationError = validateChartConfig(chart, config);
+    if (validationError) {
+      console.error(`Chart ${chart.id} validation failed: ${validationError}`);
+      return null;
     }
 
     const chartTableId = config.tableId || 'main';
@@ -578,6 +754,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         console.error(`Chart ${chart.id} references missing table ${config.tableId}`);
         return null;
       }
+
+      // Validate that table has data
+      if (!selectedTable.data || !Array.isArray(selectedTable.data)) {
+        console.error(`Chart ${chart.id} references table ${config.tableId} with no data`);
+        return null;
+      }
+
       sourceData = selectedTable.data;
       sourceColumns = selectedTable.columns || (selectedTable.data.length > 0 ?
         Object.keys(selectedTable.data[0]).map(key => ({
@@ -588,7 +771,46 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         })) : []);
     }
 
+    // Apply global date range filter (from top-level date range selector)
+    // NOTE: Global and chart-specific date ranges are applied with AND logic:
+    // Data must pass both the global filter AND the chart-specific filter
     sourceData = applyDateRangeFilter(sourceData);
+
+    // Apply chart-specific date ranges
+    if (config.appliedDateRanges && config.appliedDateRanges.length > 0 && projectData.dateRanges) {
+      const chartDateRanges = projectData.dateRanges.filter(dr =>
+        config.appliedDateRanges!.includes(dr.id)
+      );
+
+      if (chartDateRanges.length > 0) {
+        // Find all date columns in the source data
+        const dateColumns = sourceColumns.filter(col => col.type === 'date');
+
+        if (dateColumns.length > 0) {
+          sourceData = sourceData.filter(row => {
+            // Row passes if ANY date column falls within ANY of the applied date ranges
+            // NOTE: This uses OR logic across date columns - useful for datasets with multiple
+            // date fields (e.g., OrderDate, ShipDate) where a match on any field is meaningful
+            return dateColumns.some(dateCol => {
+              const rowDate = row[dateCol.name];
+              if (!rowDate) return false;
+
+              const rowDateObj = new Date(rowDate);
+              // Validate that the date is valid
+              if (isNaN(rowDateObj.getTime())) return false;
+
+              return chartDateRanges.some(dateRange => {
+                const startDate = new Date(dateRange.startDate);
+                const endDate = new Date(dateRange.endDate);
+                // Validate that date range dates are valid
+                if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false;
+                return rowDateObj >= startDate && rowDateObj <= endDate;
+              });
+            });
+          });
+        }
+      }
+    }
 
     // Filter isolation: Only apply slicers from the same table
     if (config.appliedSlicers && config.appliedSlicers.length > 0) {
@@ -848,7 +1070,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     const dateRangeObjects = activeDateRanges
       .map(rangeId => projectData.dateRanges.find(range => range.id === rangeId))
-      .filter(Boolean);
+      .filter((dr): dr is DateRange => dr !== undefined);
 
     if (dateRangeObjects.length === 0) {
       return data;
@@ -859,9 +1081,14 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         const startDate = new Date(dateRange.startDate);
         const endDate = new Date(dateRange.endDate);
 
+        // Validate that date range dates are valid
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false;
+
         for (const [key, value] of Object.entries(row)) {
           if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
             const rowDate = new Date(value);
+            // Validate that the row date is valid
+            if (isNaN(rowDate.getTime())) continue;
             if (rowDate >= startDate && rowDate <= endDate) {
               return true;
             }
@@ -1130,7 +1357,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     // Capture thumbnails for all charts
     try {
-      await captureChartThumbnails(chartIds, { force: false, scale: 2 });
+      await captureChartThumbnails(chartIds, { force: true, scale: 2 });
     } catch (error) {
       console.error('Failed to prepare chart previews for export', error);
       setExportError('Failed to prepare some chart previews. Please ensure charts are visible and try again.');
@@ -1210,7 +1437,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     setExportError(null);
 
     try {
-      await captureChartThumbnails(selectedExportChartIds, { force: false, scale: 2 });
+      await captureChartThumbnails(selectedExportChartIds, { force: true, scale: 2 });
     } catch (error) {
       console.error('Failed to prepare chart previews for export', error);
       setExportError('Failed to prepare some chart previews. Please ensure charts are visible and try again.');
@@ -1521,9 +1748,9 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
         {totalTableCount > 0 ? (
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '16px'
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
           }}>
             {allTables.map(table => (
               <TableCard
@@ -1538,6 +1765,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                     handleTableRename(table.id, newName);
                   }
                 }}
+                onView={() => setViewingTable(table)}
               />
             ))}
           </div>
@@ -1584,9 +1812,12 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     table: any;
     onDelete: () => void;
     onRename: (newName: string) => void;
-  }> = ({ table, onDelete, onRename }) => {
+    onView: () => void;
+  }> = ({ table, onDelete, onRename, onView }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(table.name);
+    const [visibleColumns, setVisibleColumns] = useState(table.columns.length);
+    const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     const handleSave = () => {
       if (editName.trim() && editName !== table.name) {
@@ -1595,101 +1826,251 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       setIsEditing(false);
     };
 
+    useEffect(() => {
+      const checkOverflow = () => {
+        const container = columnsContainerRef.current;
+        if (!container) return;
+
+        // Temporarily show all columns to measure
+        const pills = container.querySelectorAll('[data-column-pill]');
+        if (pills.length === 0) return;
+
+        let totalWidth = 0;
+        let lastVisibleIndex = 0;
+        const containerWidth = container.offsetWidth;
+        const gap = 7; // gap between pills
+
+        for (let i = 0; i < pills.length; i++) {
+          const pill = pills[i] as HTMLElement;
+          totalWidth += pill.offsetWidth + gap;
+
+          if (totalWidth > containerWidth) {
+            // Check if this causes wrapping by comparing positions
+            const firstPillTop = (pills[0] as HTMLElement).offsetTop;
+            const currentPillTop = pill.offsetTop;
+
+            if (currentPillTop > firstPillTop) {
+              // Wrapping occurred, show one less to make room for +N
+              lastVisibleIndex = Math.max(1, i - 1);
+              break;
+            }
+          }
+          lastVisibleIndex = i + 1;
+        }
+
+        setVisibleColumns(Math.min(lastVisibleIndex, table.columns.length));
+      };
+
+      // Check on mount and when window resizes
+      checkOverflow();
+      window.addEventListener('resize', checkOverflow);
+
+      // Small delay to ensure layout is complete
+      const timer = setTimeout(checkOverflow, 100);
+
+      return () => {
+        window.removeEventListener('resize', checkOverflow);
+        clearTimeout(timer);
+      };
+    }, [table.columns.length]);
+
     return (
       <div style={{
-        background: 'white',
+        background: table.isMain
+          ? 'linear-gradient(to right, #eff6ff 0%, #ffffff 100%)'
+          : 'linear-gradient(to right, #faf5ff 0%, #ffffff 100%)',
         border: '1px solid #e5e7eb',
-        borderRadius: '8px',
-        padding: '16px',
-        transition: 'all 0.2s',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        borderRadius: '10px',
+        padding: '18px 24px',
+        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '24px',
+        position: 'relative',
+        borderLeft: table.isMain ? '4px solid #3b82f6' : '4px solid #8b5cf6'
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = table.isMain
+          ? '0 8px 20px rgba(59, 130, 246, 0.15)'
+          : '0 8px 20px rgba(139, 92, 246, 0.15)';
+        e.currentTarget.style.transform = 'translateX(6px)';
+        e.currentTarget.style.borderColor = '#d1d5db';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.08)';
+        e.currentTarget.style.transform = 'translateX(0)';
+        e.currentTarget.style.borderColor = '#e5e7eb';
       }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-          <div style={{ flex: 1 }}>
-            {isEditing ? (
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onBlur={handleSave}
-                onKeyPress={(e) => e.key === 'Enter' && handleSave()}
+        {/* Table Name with Stats */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          minWidth: '300px'
+        }}>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleSave}
+              onKeyPress={(e) => e.key === 'Enter' && handleSave()}
+              style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                border: '2px solid #3b82f6',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                outline: 'none',
+                flex: 1
+              }}
+              autoFocus
+            />
+          ) : (
+            <>
+              <div
                 style={{
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  border: '1px solid #3b82f6',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  outline: 'none',
-                  width: '100%'
-                }}
-                autoFocus
-              />
-            ) : (
-              <h4
-                style={{
-                  margin: '0 0 4px 0',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: '#1e293b',
-                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '8px',
+                  cursor: 'pointer'
                 }}
                 onClick={() => setIsEditing(true)}
               >
-                📊 {table.name}
-                {table.isMain && (
-                  <span style={{
-                    fontSize: '9px',
-                    fontWeight: '700',
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                    color: 'white',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    Main
-                  </span>
-                )}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5 }}>
+                <h4 style={{
+                  margin: 0,
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  color: '#111827'
+                }}>
+                  {table.name}
+                </h4>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{
+                  opacity: 0.4,
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
+                >
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-              </h4>
-            )}
-            <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
-              {table.data.length} rows × {table.columns.length} columns
-            </p>
-          </div>
+              </div>
+              <span style={{
+                fontSize: '11px',
+                color: '#9ca3af',
+                fontWeight: '500',
+                whiteSpace: 'nowrap'
+              }}>
+                {table.data.length.toLocaleString()} rows × {table.columns.length} columns
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Columns Preview */}
+        <div
+          ref={columnsContainerRef}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexWrap: 'nowrap',
+            gap: '7px',
+            alignItems: 'center',
+            overflow: 'hidden'
+          }}
+        >
+          {table.columns.slice(0, visibleColumns).map((c: any, idx: number) => (
+            <span
+              key={idx}
+              data-column-pill
+              style={{
+                background: c.type === 'date' ? '#dbeafe' :
+                           c.type === 'number' ? '#dcfce7' : '#f3f4f6',
+                padding: '5px 11px',
+                borderRadius: '6px',
+                color: c.type === 'date' ? '#1e40af' :
+                       c.type === 'number' ? '#166534' : '#4b5563',
+                fontWeight: '600',
+                fontSize: '11px',
+                border: c.type === 'date' ? '1px solid #bfdbfe' :
+                       c.type === 'number' ? '1px solid #bbf7d0' : '1px solid #e5e7eb',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {c.name}
+            </span>
+          ))}
+          {visibleColumns < table.columns.length && (
+            <span style={{
+              color: '#6b7280',
+              fontWeight: '600',
+              fontSize: '11px',
+              background: '#f9fafb',
+              padding: '5px 11px',
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb',
+              whiteSpace: 'nowrap'
+            }}>
+              +{table.columns.length - visibleColumns}
+            </span>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <button
+            onClick={onView}
+            style={{
+              padding: '7px 16px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '7px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: '600',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.35)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 6px rgba(59, 130, 246, 0.25)';
+            }}
+          >
+            View
+          </button>
           <button
             onClick={onDelete}
             style={{
-              background: 'none',
-              border: 'none',
+              padding: '7px',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
               color: '#ef4444',
               cursor: 'pointer',
-              padding: '4px',
+              borderRadius: '7px',
+              transition: 'all 0.2s',
               display: 'flex',
-              alignItems: 'center',
-              transition: 'all 0.15s'
+              alignItems: 'center'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#dc2626';
-              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.background = '#fee2e2';
+              e.currentTarget.style.borderColor = '#fca5a5';
+              e.currentTarget.style.transform = 'scale(1.05)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#ef4444';
+              e.currentTarget.style.background = '#fef2f2';
+              e.currentTarget.style.borderColor = '#fecaca';
               e.currentTarget.style.transform = 'scale(1)';
             }}
             title="Delete table"
@@ -1699,23 +2080,6 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"/>
             </svg>
           </button>
-        </div>
-        <div style={{
-          background: '#f9fafb',
-          borderRadius: '4px',
-          padding: '8px',
-          fontSize: '11px',
-          color: '#6b7280'
-        }}>
-          <div style={{ marginBottom: '4px' }}>
-            <strong>Columns:</strong> {table.columns.slice(0, 3).map((c: any) => c.name).join(', ')}
-            {table.columns.length > 3 && ` +${table.columns.length - 3} more`}
-          </div>
-          {table.createdAt && (
-            <div style={{ fontSize: '10px', color: '#9ca3af' }}>
-              Created: {new Date(table.createdAt).toLocaleDateString()}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -2450,6 +2814,180 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           onCancel={handleCloseExportFlow}
           onGenerate={handleExportGenerate}
         />
+      )}
+
+      {/* Table Preview Modal */}
+      {viewingTable && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setViewingTable(null)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '8px',
+              width: 'min(95vw, 1400px)',
+              height: '90vh',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '2px solid #e5e7eb',
+              background: viewingTable.isMain
+                ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)'
+                : 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <h2 style={{
+                  margin: '0 0 6px 0',
+                  fontSize: '17px',
+                  fontWeight: '700',
+                  color: '#111827'
+                }}>
+                  {viewingTable.name}
+                </h2>
+                <p style={{
+                  margin: 0,
+                  fontSize: '13px',
+                  color: '#4b5563',
+                  fontWeight: '500'
+                }}>
+                  {viewingTable.data.length.toLocaleString()} rows × {viewingTable.columns.length} columns
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingTable(null)}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  fontSize: '18px',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                  lineHeight: 1,
+                  borderRadius: '6px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#ef4444';
+                  e.currentTarget.style.color = 'white';
+                  e.currentTarget.style.borderColor = '#ef4444';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#ffffff';
+                  e.currentTarget.style.color = '#6b7280';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Table Content - Fully Scrollable */}
+            <div style={{
+              flex: 1,
+              overflow: 'auto'
+            }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: '13px'
+              }}>
+                <thead style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 1,
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <tr>
+                    {viewingTable.columns.map((col: any, idx: number) => (
+                      <th key={idx} style={{
+                        padding: '14px 16px',
+                        textAlign: 'left',
+                        background: col.type === 'date' ? 'linear-gradient(180deg, #dbeafe 0%, #eff6ff 100%)' :
+                                   col.type === 'number' ? 'linear-gradient(180deg, #dcfce7 0%, #f0fdf4 100%)' :
+                                   'linear-gradient(180deg, #f3f4f6 0%, #f9fafb 100%)',
+                        borderBottom: col.type === 'date' ? '2px solid #93c5fd' :
+                                     col.type === 'number' ? '2px solid #86efac' : '2px solid #d1d5db',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '3px'
+                        }}>
+                          <span style={{
+                            fontWeight: '700',
+                            color: '#111827',
+                            fontSize: '12px'
+                          }}>
+                            {col.name}
+                          </span>
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            color: col.type === 'date' ? '#1e40af' :
+                                   col.type === 'number' ? '#166534' : '#6b7280',
+                            textTransform: 'lowercase',
+                            letterSpacing: '0.3px'
+                          }}>
+                            {col.type}
+                          </span>
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewingTable.data.map((row: any, rowIdx: number) => (
+                    <tr key={rowIdx} style={{
+                      background: rowIdx % 2 === 0 ? '#ffffff' : '#fafbfc',
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = viewingTable.isMain ? '#f0f9ff' : '#faf5ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = rowIdx % 2 === 0 ? '#ffffff' : '#fafbfc'}
+                    >
+                      {viewingTable.columns.map((col: any, colIdx: number) => (
+                        <td key={colIdx} style={{
+                          padding: '11px 16px',
+                          borderBottom: '1px solid #f1f5f9',
+                          color: '#374151',
+                          fontSize: '12px',
+                          fontWeight: '500'
+                        }}>
+                          {row[col.name] !== null && row[col.name] !== undefined
+                            ? String(row[col.name])
+                            : <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Analysis Modal */}

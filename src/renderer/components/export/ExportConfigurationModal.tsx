@@ -410,27 +410,39 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 
                   <div style={{
                     borderRadius: '12px',
-                    border: '2px solid #a855f7',
                     background: '#ffffff',
                     padding: '12px',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    height: '315px',
-                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
-                    flex: '0 0 auto'
+                    minHeight: '270px',
+                    flex: '0 0 auto',
+                    position: 'relative'
                   }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      border: '2px solid #a855f7',
+                      borderRadius: '12px',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+                      pointerEvents: 'none',
+                      zIndex: 10
+                    }}></div>
                     {thumbnail ? (
                       <img
                         src={thumbnail.dataUrl}
                         alt={`Visualization for ${chart.name || 'chart'}`}
                         style={{
-                          width: '105%',
-                          height: '105%',
+                          maxWidth: '110%',
+                          maxHeight: '110%',
                           objectFit: 'contain',
-                          borderRadius: '8px',
                           background: '#ffffff',
-                          marginLeft: '-8px'
+                          display: 'block',
+                          position: 'relative',
+                          zIndex: 1
                         }}
                       />
                     ) : (
