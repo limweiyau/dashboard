@@ -214,12 +214,13 @@ const CompactDateRangeDropdown: React.FC<CompactDateRangeDropdownProps> = ({
             color: '#374151',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
-            padding: '4px 8px',
+            padding: '3px 7px',
             fontSize: '12px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            transition: 'all 0.2s ease'
+            fontWeight: '500',
+            transition: 'all 0.2s'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = '#e5e7eb';

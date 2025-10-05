@@ -444,8 +444,18 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       dateRange: selectedDateRange,
       dateRanges: selectedDateRanges,
       // Only include slicers that actually filter data (have specific values selected)
+      // and don't include slicers where all available values are selected (equivalent to no filter)
       slicers: appliedSlicers
-        .filter(slicer => slicer.selectedValues && slicer.selectedValues.length > 0)
+        .filter(slicer => {
+          if (!slicer.selectedValues || slicer.selectedValues.length === 0) {
+            return false; // No values selected = no filter
+          }
+          // If all available values are selected, treat it as no filter
+          if (slicer.selectedValues.length === slicer.availableValues.length) {
+            return false;
+          }
+          return true;
+        })
         .map(slicer => ({
           id: slicer.id,
           column: slicer.column,

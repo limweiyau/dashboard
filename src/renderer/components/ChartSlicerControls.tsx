@@ -347,7 +347,7 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
             borderRadius: '6px',
             boxShadow: '0 8px 16px rgba(0, 0, 0, 0.08)',
             zIndex: 20,
-            maxHeight: '120px',
+            maxHeight: '180px',
             overflowY: 'auto'
           }}
         >
@@ -365,7 +365,14 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
               border: 'none',
               cursor: 'pointer',
               fontSize: '13px',
-              color: '#111827'
+              color: '#111827',
+              transition: 'background 0.15s'
+            }}
+            onMouseEnter={(e) => {
+              if (value !== '') e.currentTarget.style.background = '#f3f4f6';
+            }}
+            onMouseLeave={(e) => {
+              if (value !== '') e.currentTarget.style.background = 'white';
             }}
           >
             Select column...
@@ -391,10 +398,16 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({ value, options, placeholder
                   color: '#111827',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  transition: 'background 0.15s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) e.currentTarget.style.background = '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) e.currentTarget.style.background = 'white';
                 }}
               >
-                {isActive && <span style={{ color: '#2563eb' }}>✔</span>}
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {option}
                 </span>
@@ -907,12 +920,19 @@ const ChartSlicerControls: React.FC<ChartSlicerControlsProps> = ({
               color: (appliedSlicers.length >= MAX_SLICERS_PER_CHART && !showAddSlicer) ? '#9ca3af' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '4px 8px',
+              padding: '3px 7px',
               fontSize: '12px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              fontWeight: '500'
+              fontWeight: '500',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#e5e7eb';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = (appliedSlicers.length >= MAX_SLICERS_PER_CHART && !showAddSlicer) ? '#f8fafc' : '#f3f4f6';
             }}
             title={appliedSlicers.length >= MAX_SLICERS_PER_CHART ? `Maximum filters reached (${MAX_SLICERS_PER_CHART}/${MAX_SLICERS_PER_CHART}). Open to edit or remove filters.` : 'Manage filters'}
           >
