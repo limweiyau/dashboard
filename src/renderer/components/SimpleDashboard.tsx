@@ -437,16 +437,24 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
   // Generate filter fingerprint for analysis accuracy
   const generateFilterFingerprint = (chart: Chart) => {
+    const chartTableId = chart.config.tableId || 'main';
     const appliedSlicerIds = chart.config.appliedSlicers || [];
     const appliedSlicers = projectData.slicers.filter(s => appliedSlicerIds.includes(s.id));
 
     const filterState = {
+      tableId: chartTableId, // Include table ID for multi-table isolation
       dateRange: selectedDateRange,
       dateRanges: selectedDateRanges,
       // Only include slicers that actually filter data (have specific values selected)
       // and don't include slicers where all available values are selected (equivalent to no filter)
       slicers: appliedSlicers
         .filter(slicer => {
+          // Filter isolation: only include slicers from the same table
+          const slicerTableId = slicer.tableId || 'main';
+          if (slicerTableId !== chartTableId) {
+            return false;
+          }
+
           if (!slicer.selectedValues || slicer.selectedValues.length === 0) {
             return false; // No values selected = no filter
           }
@@ -458,7 +466,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         })
         .map(slicer => ({
           id: slicer.id,
-          column: slicer.column,
+          column: slicer.columnName,
           selectedValues: slicer.selectedValues.sort() // Sort for consistent ordering
         }))
     };
@@ -559,27 +567,55 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       return generateSampleData(chart.type);
     }
 
+    const chartTableId = config.tableId || 'main';
     let sourceData: any[] = projectData.data;
     let sourceColumns = projectData.columns;
 
     if (config.tableId && config.tableId !== 'main') {
       const selectedTable = projectData.tables?.find(table => table.id === config.tableId);
-      if (selectedTable) {
-        sourceData = selectedTable.data;
-        sourceColumns = selectedTable.columns || (selectedTable.data.length > 0 ?
-          Object.keys(selectedTable.data[0]).map(key => ({
-            name: key,
-            type: typeof selectedTable.data[0][key] === 'number' ? 'number' as const : 'string' as const,
-            nullable: true,
-            unique: false
-          })) : []);
+      if (!selectedTable) {
+        // Table not found - chart is broken
+        console.error(`Chart ${chart.id} references missing table ${config.tableId}`);
+        return null;
       }
+      sourceData = selectedTable.data;
+      sourceColumns = selectedTable.columns || (selectedTable.data.length > 0 ?
+        Object.keys(selectedTable.data[0]).map(key => ({
+          name: key,
+          type: typeof selectedTable.data[0][key] === 'number' ? 'number' as const : 'string' as const,
+          nullable: true,
+          unique: false
+        })) : []);
     }
 
     sourceData = applyDateRangeFilter(sourceData);
 
+    // Filter isolation: Only apply slicers from the same table
     if (config.appliedSlicers && config.appliedSlicers.length > 0) {
-      sourceData = applySlicersToData(sourceData, config.appliedSlicers, projectData.slicers);
+      const validSlicers = projectData.slicers.filter(slicer => {
+        // Check if slicer is applied to this chart
+        if (!config.appliedSlicers?.includes(slicer.id)) return false;
+
+        // Check if slicer's table matches chart's table
+        const slicerTableId = slicer.tableId || 'main';
+        if (slicerTableId !== chartTableId) {
+          console.warn(`Skipping slicer ${slicer.id} - table mismatch (chart: ${chartTableId}, slicer: ${slicerTableId})`);
+          return false;
+        }
+
+        // Check if slicer's column exists in the table
+        const columnExists = sourceColumns.some(col => col.name === slicer.columnName);
+        if (!columnExists) {
+          console.warn(`Skipping slicer ${slicer.id} - column ${slicer.columnName} not found in table`);
+          return false;
+        }
+
+        return true;
+      });
+
+      if (validSlicers.length > 0) {
+        sourceData = applySlicersToData(sourceData, validSlicers.map(s => s.id), projectData.slicers);
+      }
     }
 
     if (!sourceData.length) {
@@ -837,13 +873,32 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   };
 
   const handleDataImport = (data: any[], columns: any[], fileName?: string) => {
-    const updatedData = {
-      ...projectData,
-      data,
-      columns,
-      name: fileName ? fileName.replace(/\.[^/.]+$/, '') : projectData.name || 'Dataset'
-    };
-    onProjectUpdate(updatedData);
+    // Check if we have main data - if not, this becomes main data
+    if (!projectData.data || projectData.data.length === 0) {
+      const updatedData = {
+        ...projectData,
+        data,
+        columns,
+        name: fileName ? fileName.replace(/\.[^/.]+$/, '') : projectData.name || 'Dataset'
+      };
+      onProjectUpdate(updatedData);
+    } else {
+      // Add as additional table
+      const newTable = {
+        id: `table-${Date.now()}`,
+        name: fileName ? fileName.replace(/\.[^/.]+$/, '') : `Table ${(projectData.tables?.length || 0) + 1}`,
+        data,
+        columns,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const updatedData = {
+        ...projectData,
+        tables: [...(projectData.tables || []), newTable]
+      };
+      onProjectUpdate(updatedData);
+    }
     setShowDataImport(false);
     setImportError('');
   };
@@ -1353,6 +1408,51 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       }
     };
 
+    const handleTableDelete = (tableId: string) => {
+      const table = projectData.tables.find(t => t.id === tableId);
+      if (!table) return;
+
+      // Check for dependent charts
+      const affectedCharts = projectData.charts.filter(
+        c => c.config.tableId === tableId
+      );
+
+      // Check for dependent slicers
+      const affectedSlicers = projectData.slicers.filter(
+        s => s.tableId === tableId
+      );
+
+      if (affectedCharts.length > 0 || affectedSlicers.length > 0) {
+        const chartNames = affectedCharts.map(c => `"${c.config.title || c.name}"`).join(', ');
+        const message = `Deleting "${table.name}" will affect:\n\n` +
+          `• ${affectedCharts.length} chart(s): ${chartNames}\n` +
+          `• ${affectedSlicers.length} filter(s)\n\n` +
+          `These will stop working until reconfigured.\n\n` +
+          `Delete anyway?`;
+
+        if (!confirm(message)) return;
+      }
+
+      // Proceed with deletion
+      const updatedData = {
+        ...projectData,
+        tables: projectData.tables.filter(t => t.id !== tableId)
+      };
+      onProjectUpdate(updatedData);
+    };
+
+    const handleTableRename = (tableId: string, newName: string) => {
+      const updatedData = {
+        ...projectData,
+        tables: projectData.tables.map(t =>
+          t.id === tableId
+            ? { ...t, name: newName, updatedAt: new Date().toISOString() }
+            : t
+        )
+      };
+      onProjectUpdate(updatedData);
+    };
+
     return (
       <div style={{ padding: '24px' }}>
         {projectData.data?.length > 0 ? (
@@ -1662,6 +1762,213 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             </p>
           </div>
         )}
+
+        {/* Additional Tables Section */}
+        <div style={{ marginTop: '32px' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px'
+          }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#1e293b'
+            }}>
+              Additional Tables ({projectData.tables?.length || 0})
+            </h3>
+            <button
+              onClick={() => setShowDataImport(true)}
+              style={{
+                padding: '8px 16px',
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Upload Table
+            </button>
+          </div>
+
+          {projectData.tables && projectData.tables.length > 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: '16px'
+            }}>
+              {projectData.tables.map(table => (
+                <TableCard
+                  key={table.id}
+                  table={table}
+                  onDelete={() => handleTableDelete(table.id)}
+                  onRename={(newName) => handleTableRename(table.id, newName)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              background: 'white',
+              border: '2px dashed #e5e7eb',
+              borderRadius: '8px',
+              padding: '32px',
+              textAlign: 'center',
+              color: '#9ca3af'
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>📊</div>
+              <p style={{ margin: 0, fontSize: '14px' }}>
+                No additional tables yet. Upload a table to use in your charts.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Table Card Component
+  const TableCard: React.FC<{
+    table: any;
+    onDelete: () => void;
+    onRename: (newName: string) => void;
+  }> = ({ table, onDelete, onRename }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editName, setEditName] = useState(table.name);
+
+    const handleSave = () => {
+      if (editName.trim() && editName !== table.name) {
+        onRename(editName.trim());
+      }
+      setIsEditing(false);
+    };
+
+    return (
+      <div style={{
+        background: 'white',
+        border: '1px solid #e5e7eb',
+        borderRadius: '8px',
+        padding: '16px',
+        transition: 'all 0.2s',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+        e.currentTarget.style.transform = 'translateY(-2px)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+        e.currentTarget.style.transform = 'translateY(0)';
+      }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+          <div style={{ flex: 1 }}>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={handleSave}
+                onKeyPress={(e) => e.key === 'Enter' && handleSave()}
+                style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  border: '1px solid #3b82f6',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  outline: 'none',
+                  width: '100%'
+                }}
+                autoFocus
+              />
+            ) : (
+              <h4
+                style={{
+                  margin: '0 0 4px 0',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#1e293b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                onClick={() => setIsEditing(true)}
+              >
+                📊 {table.name}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5 }}>
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </h4>
+            )}
+            <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
+              {table.data.length} rows × {table.columns.length} columns
+            </p>
+          </div>
+          <button
+            onClick={onDelete}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#ef4444',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#dc2626';
+              e.currentTarget.style.transform = 'scale(1.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#ef4444';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+            title="Delete table"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3,6 5,6 21,6"/>
+              <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"/>
+            </svg>
+          </button>
+        </div>
+        <div style={{
+          background: '#f9fafb',
+          borderRadius: '4px',
+          padding: '8px',
+          fontSize: '11px',
+          color: '#6b7280'
+        }}>
+          <div style={{ marginBottom: '4px' }}>
+            <strong>Columns:</strong> {table.columns.slice(0, 3).map((c: any) => c.name).join(', ')}
+            {table.columns.length > 3 && ` +${table.columns.length - 3} more`}
+          </div>
+          <div style={{ fontSize: '10px', color: '#9ca3af' }}>
+            Created: {new Date(table.createdAt).toLocaleDateString()}
+          </div>
+        </div>
       </div>
     );
   };

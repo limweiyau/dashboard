@@ -1015,26 +1015,68 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                 {activeTab === 'data' && (
                   <div>
                     {/* Table Selection */}
-                    {projectData.tables && projectData.tables.length > 0 && (
-                      <div style={{ marginBottom: '20px', padding: '16px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>
-                          📊 Data Source Selection
-                        </h3>
+                    <div style={{ marginBottom: '20px', padding: '16px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                      <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>
+                        📊 Data Source Selection
+                      </h3>
                         <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: '#6b7280' }}>
                           Select Data Table *
                         </label>
                         <select
                           value={selectedTableId}
                           onChange={(e) => {
-                            setSelectedTableId(e.target.value);
-                            // Reset field selections when table changes
+                            const newTableId = e.target.value;
+                            const newTable = newTableId === 'main'
+                              ? { columns: projectData.columns }
+                              : projectData.tables.find(t => t.id === newTableId);
+
+                            if (!newTable) return;
+
+                            // Check which fields will become invalid
+                            const invalidFields: string[] = [];
+                            const newColumnNames = newTable.columns.map(c => c.name);
+
+                            if (chartConfig.xAxisField && !newColumnNames.includes(chartConfig.xAxisField)) {
+                              invalidFields.push('X-Axis');
+                            }
+                            if (chartConfig.yAxisField) {
+                              const yFields = Array.isArray(chartConfig.yAxisField)
+                                ? chartConfig.yAxisField
+                                : [chartConfig.yAxisField];
+                              if (yFields.some(f => !newColumnNames.includes(f))) {
+                                invalidFields.push('Y-Axis');
+                              }
+                            }
+                            if (chartConfig.categoryField && !newColumnNames.includes(chartConfig.categoryField)) {
+                              invalidFields.push('Category');
+                            }
+                            if (chartConfig.valueField && !newColumnNames.includes(chartConfig.valueField)) {
+                              invalidFields.push('Value');
+                            }
+                            if (chartConfig.seriesField && !newColumnNames.includes(chartConfig.seriesField)) {
+                              invalidFields.push('Series');
+                            }
+
+                            // Show warning if fields will be reset
+                            if (invalidFields.length > 0) {
+                              const message = `Switching tables will reset these fields because they don't exist in the new table:\n\n${invalidFields.join(', ')}\n\nContinue?`;
+                              if (!confirm(message)) {
+                                return;
+                              }
+                            }
+
+                            setSelectedTableId(newTableId);
+
+                            // Only reset invalid fields
                             setChartConfig(prev => ({
                               ...prev,
-                              xAxisField: '',
-                              yAxisField: '',
-                              categoryField: '',
-                              valueField: '',
-                              seriesField: ''
+                              xAxisField: newColumnNames.includes(prev.xAxisField || '') ? prev.xAxisField : '',
+                              yAxisField: Array.isArray(prev.yAxisField)
+                                ? prev.yAxisField.filter(f => newColumnNames.includes(f))
+                                : (newColumnNames.includes(prev.yAxisField || '') ? prev.yAxisField : ''),
+                              categoryField: newColumnNames.includes(prev.categoryField || '') ? prev.categoryField : '',
+                              valueField: newColumnNames.includes(prev.valueField || '') ? prev.valueField : '',
+                              seriesField: newColumnNames.includes(prev.seriesField || '') ? prev.seriesField : ''
                             }));
                           }}
                           style={{
@@ -1049,7 +1091,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                           <option value="main">
                             {projectData.name || 'Main Dataset'} ({projectData.data.length} rows)
                           </option>
-                          {projectData.tables.map(table => (
+                          {projectData.tables && projectData.tables.map(table => (
                             <option key={table.id} value={table.id}>
                               {table.name} ({table.data.length} rows)
                             </option>
@@ -1057,11 +1099,15 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                         </select>
                         {selectedTableId !== 'main' && (
                           <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-                            Using table: {projectData.tables.find(t => t.id === selectedTableId)?.name}
+                            ✓ Using table: {projectData.tables?.find(t => t.id === selectedTableId)?.name}
+                          </div>
+                        )}
+                        {(!projectData.tables || projectData.tables.length === 0) && (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>
+                            Tip: You can upload additional tables from the Data tab
                           </div>
                         )}
                       </div>
-                    )}
 
                     {selectedTemplate.recipe.requiredFields.xAxis && (
                       <div style={{ marginBottom: '16px' }}>
