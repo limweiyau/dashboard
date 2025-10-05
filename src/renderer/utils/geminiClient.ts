@@ -16,7 +16,7 @@ export class GeminiClient {
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
-  async testConnection(modelName: string = 'gemini-pro'): Promise<{ success: boolean; error?: string }> {
+  async testConnection(modelName: string = 'gemini-2.5-flash'): Promise<{ success: boolean; error?: string }> {
     if (!this.genAI || !this.apiKey) {
       return { success: false, error: 'API key not set' };
     }
@@ -56,7 +56,7 @@ export class GeminiClient {
     }
   }
 
-  async generateContent(prompt: string, modelName: string = 'gemini-pro'): Promise<string> {
+  async generateContent(prompt: string, modelName: string = 'gemini-2.5-flash'): Promise<string> {
     if (!this.genAI) {
       throw new Error('API key not set');
     }

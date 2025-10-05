@@ -1626,6 +1626,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       ...(projectData.data?.length > 0 ? [{
         id: 'main',
         name: projectData.name || 'Main Dataset',
+        description: projectData.description || '',
+        descriptionIsAI: projectData.descriptionIsAI || false,
         data: projectData.data,
         columns: projectData.columns,
         createdAt: '', // Main table doesn't need these
@@ -1634,6 +1636,54 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       }] : []),
       ...(projectData.tables || []).map(t => ({ ...t, isMain: false }))
     ];
+
+    const updateTableDescription = (
+      tableRef: any,
+      tableListIndex: number | null,
+      description: string,
+      isAI?: boolean
+    ) => {
+      const aiFlag = Boolean(isAI);
+
+      if (tableRef.isMain) {
+        const updatedData = {
+          ...projectData,
+          description,
+          descriptionIsAI: aiFlag
+        };
+        onProjectUpdate(updatedData);
+        return;
+      }
+
+      const tables = projectData.tables || [];
+      if (tables.length === 0) {
+        return;
+      }
+
+      let changed = false;
+      const updatedTables = tables.map((existingTable, idx) => {
+        const matchesById = tableRef.id ? existingTable.id === tableRef.id : false;
+        const matchesByIndex = !tableRef.id && tableListIndex !== null && tableListIndex === idx;
+
+        if (matchesById || matchesByIndex) {
+          changed = true;
+          return {
+            ...existingTable,
+            description,
+            descriptionIsAI: aiFlag
+          };
+        }
+
+        return existingTable;
+      });
+
+      if (changed) {
+        onProjectUpdate({
+          ...projectData,
+          tables: updatedTables
+        });
+      }
+    };
 
     const totalTableCount = allTables.length;
 
@@ -1692,22 +1742,30 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             flexDirection: 'column',
             gap: '12px'
           }}>
-            {allTables.map(table => (
-              <TableCard
-                key={table.id}
-                table={table}
-                onDelete={table.isMain ? handleDeleteData : () => handleTableDelete(table.id)}
-                onRename={(newName) => {
-                  if (table.isMain) {
-                    const updatedData = { ...projectData, name: newName };
-                    onProjectUpdate(updatedData);
-                  } else {
-                    handleTableRename(table.id, newName);
+            {allTables.map((table, index) => {
+              const tablesOffset = projectData.data?.length > 0 ? 1 : 0;
+              const additionalTableIndex = table.isMain ? null : index - tablesOffset;
+
+              return (
+                <TableCard
+                  key={table.id || `table-${index}`}
+                  table={table}
+                  onDelete={table.isMain ? handleDeleteData : () => handleTableDelete(table.id)}
+                  onRename={(newName) => {
+                    if (table.isMain) {
+                      const updatedData = { ...projectData, name: newName };
+                      onProjectUpdate(updatedData);
+                    } else {
+                      handleTableRename(table.id, newName);
+                    }
+                  }}
+                  onView={() => setViewingTable(table)}
+                  onDescriptionUpdate={(description, isAI) =>
+                    updateTableDescription(table, additionalTableIndex, description, isAI)
                   }
-                }}
-                onView={() => setViewingTable(table)}
-              />
-            ))}
+                />
+              );
+            })}
           </div>
         ) : (
           <div
@@ -1753,11 +1811,22 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     onDelete: () => void;
     onRename: (newName: string) => void;
     onView: () => void;
-  }> = ({ table, onDelete, onRename, onView }) => {
+    onDescriptionUpdate: (description: string, isAI?: boolean) => void;
+  }> = ({ table, onDelete, onRename, onView, onDescriptionUpdate }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(table.name);
-    const [visibleColumns, setVisibleColumns] = useState(table.columns.length);
-    const columnsContainerRef = useRef<HTMLDivElement>(null);
+    const [description, setDescription] = useState(table.description || '');
+    const [isEditingDescription, setIsEditingDescription] = useState(false);
+    const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+    const [isAIGenerated, setIsAIGenerated] = useState(table.descriptionIsAI || false);
+
+    useEffect(() => {
+      setDescription(table.description || '');
+    }, [table.description]);
+
+    useEffect(() => {
+      setIsAIGenerated(table.descriptionIsAI || false);
+    }, [table.id, table.descriptionIsAI]);
 
     const handleSave = () => {
       if (editName.trim() && editName !== table.name) {
@@ -1766,59 +1835,65 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       setIsEditing(false);
     };
 
-    useEffect(() => {
-      const checkOverflow = () => {
-        const container = columnsContainerRef.current;
-        if (!container) return;
+    const generateDescription = async () => {
+      setIsGeneratingDescription(true);
 
-        // Temporarily show all columns to measure
-        const pills = container.querySelectorAll('[data-column-pill]');
-        if (pills.length === 0) return;
+      const applyFallbackDescription = (reason?: string) => {
+        const rowCount = Array.isArray(table.data) ? table.data.length : 0;
+        const fallbackDesc = `Dataset with ${rowCount} rows and ${table.columns.length} columns`;
+        setDescription(fallbackDesc);
+        setIsAIGenerated(false);
+        onDescriptionUpdate(fallbackDesc, false);
+        if (reason) {
+          console.warn(reason);
+          alert('Unable to generate description automatically. Please add a Gemini API key in Settings.');
+        }
+      };
 
-        let totalWidth = 0;
-        let lastVisibleIndex = 0;
-        const containerWidth = container.offsetWidth;
-        const gap = 7; // gap between pills
-
-        for (let i = 0; i < pills.length; i++) {
-          const pill = pills[i] as HTMLElement;
-          totalWidth += pill.offsetWidth + gap;
-
-          if (totalWidth > containerWidth) {
-            // Check if this causes wrapping by comparing positions
-            const firstPillTop = (pills[0] as HTMLElement).offsetTop;
-            const currentPillTop = pill.offsetTop;
-
-            if (currentPillTop > firstPillTop) {
-              // Wrapping occurred, show one less to make room for +N
-              lastVisibleIndex = Math.max(1, i - 1);
-              break;
-            }
-          }
-          lastVisibleIndex = i + 1;
+      try {
+        const apiKey = settings?.apiKeys?.gemini;
+        if (!apiKey) {
+          applyFallbackDescription('Gemini API key is not configured. Using fallback description.');
+          return;
         }
 
-        setVisibleColumns(Math.min(lastVisibleIndex, table.columns.length));
-      };
+        const geminiClient = new GeminiClient(apiKey);
+        const selectedModel = settings?.selectedModels?.gemini || 'gemini-2.5-flash';
+        const rowCount = Array.isArray(table.data) ? table.data.length : 0;
+        const columnInfo = table.columns.map((c: any) => `${c.name} (${c.type})`).join(', ');
+        const prompt = `Write a professional, business-focused description of this data table in one sentence. Table: "${table.name}" with ${rowCount} records. Fields: ${columnInfo}. Focus on what this data tracks or measures. Maximum 100 characters. No quotes. Be concise and clear.`;
 
-      // Check on mount and when window resizes
-      checkOverflow();
-      window.addEventListener('resize', checkOverflow);
+        const result = await geminiClient.generateContent(prompt, selectedModel);
+        const generatedDesc = result.trim();
+        if (!generatedDesc) {
+          applyFallbackDescription('Gemini model returned an empty description. Using fallback.');
+          return;
+        }
 
-      // Small delay to ensure layout is complete
-      const timer = setTimeout(checkOverflow, 100);
+        const newDescription = generatedDesc.slice(0, 100);
+        setDescription(newDescription);
+        setIsAIGenerated(true);
+        onDescriptionUpdate(newDescription, true);
+      } catch (error) {
+        console.error('Failed to generate description:', error);
+        if (error instanceof Error && /model/i.test(error.message)) {
+          alert('The selected Gemini model is unavailable for text generation. Please choose a different model in Settings.');
+        }
+        applyFallbackDescription();
+      } finally {
+        setIsGeneratingDescription(false);
+      }
+    };
 
-      return () => {
-        window.removeEventListener('resize', checkOverflow);
-        clearTimeout(timer);
-      };
-    }, [table.columns.length]);
+    const handleDescriptionSave = () => {
+      setIsAIGenerated(false); // Reset AI flag when manually edited
+      onDescriptionUpdate(description, false);
+      setIsEditingDescription(false);
+    };
 
     return (
       <div style={{
-        background: table.isMain
-          ? 'linear-gradient(to right, #eff6ff 0%, #ffffff 100%)'
-          : 'linear-gradient(to right, #faf5ff 0%, #ffffff 100%)',
+        background: '#ffffff',
         border: '1px solid #e5e7eb',
         borderRadius: '10px',
         padding: '18px 24px',
@@ -1828,27 +1903,53 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         alignItems: 'center',
         gap: '24px',
         position: 'relative',
-        borderLeft: table.isMain ? '4px solid #3b82f6' : '4px solid #8b5cf6'
+        borderLeft: '4px solid transparent'
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = table.isMain
-          ? '0 8px 20px rgba(59, 130, 246, 0.15)'
-          : '0 8px 20px rgba(139, 92, 246, 0.15)';
+        const borderLeft = e.currentTarget.querySelector('[data-border-left]') as HTMLElement;
+        if (borderLeft) {
+          borderLeft.style.background = 'linear-gradient(to right, rgba(59, 130, 246, 0.08) 0%, transparent 100%)';
+        }
+        e.currentTarget.style.boxShadow = '0 8px 20px rgba(59, 130, 246, 0.15)';
         e.currentTarget.style.transform = 'translateX(6px)';
         e.currentTarget.style.borderColor = '#d1d5db';
+        e.currentTarget.style.borderLeftColor = '#3b82f6';
       }}
       onMouseLeave={(e) => {
+        const borderLeft = e.currentTarget.querySelector('[data-border-left]') as HTMLElement;
+        if (borderLeft) {
+          borderLeft.style.background = 'transparent';
+        }
         e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.08)';
         e.currentTarget.style.transform = 'translateX(0)';
         e.currentTarget.style.borderColor = '#e5e7eb';
+        e.currentTarget.style.borderLeftColor = 'transparent';
       }}
       >
+        {/* Hover background overlay */}
+        <div
+          data-border-left
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: '120px',
+            background: 'transparent',
+            borderRadius: '10px 0 0 10px',
+            transition: 'background 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            pointerEvents: 'none',
+            zIndex: 0
+          }}
+        />
         {/* Table Name with Stats */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '12px',
-          minWidth: '300px'
+          minWidth: '300px',
+          position: 'relative',
+          zIndex: 1
         }}>
           {isEditing ? (
             <input
@@ -1910,52 +2011,55 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           )}
         </div>
 
-        {/* Columns Preview */}
-        <div
-          ref={columnsContainerRef}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexWrap: 'nowrap',
-            gap: '7px',
-            alignItems: 'center',
-            overflow: 'hidden'
-          }}
-        >
-          {table.columns.slice(0, visibleColumns).map((c: any, idx: number) => (
-            <span
-              key={idx}
-              data-column-pill
+        {/* Description */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          position: 'relative',
+          zIndex: 1
+        }}>
+          {isEditingDescription ? (
+            <div style={{ display: 'flex', gap: '6px', flex: 1, alignItems: 'center' }}>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value.slice(0, 100))}
+                onBlur={handleDescriptionSave}
+                onKeyPress={(e) => e.key === 'Enter' && handleDescriptionSave()}
+                placeholder="Add a description..."
+                style={{
+                  fontSize: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  outline: 'none',
+                  flex: 1,
+                  color: '#6b7280'
+                }}
+                autoFocus
+              />
+              <span style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap' }}>
+                {description.length}/100
+              </span>
+            </div>
+          ) : (
+            <div
+              onClick={() => setIsEditingDescription(true)}
               style={{
-                background: c.type === 'date' ? '#dbeafe' :
-                           c.type === 'number' ? '#dcfce7' : '#f3f4f6',
-                padding: '5px 11px',
-                borderRadius: '6px',
-                color: c.type === 'date' ? '#1e40af' :
-                       c.type === 'number' ? '#166534' : '#4b5563',
-                fontWeight: '600',
-                fontSize: '11px',
-                border: c.type === 'date' ? '1px solid #bfdbfe' :
-                       c.type === 'number' ? '1px solid #bbf7d0' : '1px solid #e5e7eb',
+                fontSize: '12px',
+                color: description ? '#6b7280' : '#9ca3af',
+                fontStyle: description ? 'normal' : 'italic',
+                cursor: 'pointer',
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
               }}
             >
-              {c.name}
-            </span>
-          ))}
-          {visibleColumns < table.columns.length && (
-            <span style={{
-              color: '#6b7280',
-              fontWeight: '600',
-              fontSize: '11px',
-              background: '#f9fafb',
-              padding: '5px 11px',
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb',
-              whiteSpace: 'nowrap'
-            }}>
-              +{table.columns.length - visibleColumns}
-            </span>
+              {description || 'Click to add a description...'}
+            </div>
           )}
         </div>
 
@@ -1963,8 +2067,31 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '10px'
+          gap: '10px',
+          position: 'relative',
+          zIndex: 1
         }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              generateDescription();
+            }}
+            disabled={isGeneratingDescription}
+            style={{
+              padding: '7px 16px',
+              background: isGeneratingDescription ? '#f3f4f6' : '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '7px',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: isGeneratingDescription ? '#9ca3af' : '#2563eb',
+              cursor: isGeneratingDescription ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
+            }}
+          >
+            {isGeneratingDescription ? 'Generating...' : (isAIGenerated ? 'Regenerate' : 'Generate Description')}
+          </button>
           <button
             onClick={onView}
             style={{
@@ -1993,15 +2120,15 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           <button
             onClick={onDelete}
             style={{
-              padding: '7px',
+              padding: '7px 16px',
               background: '#fef2f2',
               border: '1px solid #fecaca',
               color: '#ef4444',
               cursor: 'pointer',
               borderRadius: '7px',
               transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center'
+              fontSize: '12px',
+              fontWeight: '600'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = '#fee2e2';
@@ -2013,12 +2140,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               e.currentTarget.style.borderColor = '#fecaca';
               e.currentTarget.style.transform = 'scale(1)';
             }}
-            title="Delete table"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="3,6 5,6 21,6"/>
-              <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"/>
-            </svg>
+            Delete
           </button>
         </div>
       </div>

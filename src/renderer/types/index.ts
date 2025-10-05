@@ -19,6 +19,8 @@ export interface Project {
 export interface ProjectData {
   id: string;
   name: string;
+  description?: string;
+  descriptionIsAI?: boolean;
   data: any[];
   columns: ColumnInfo[];
   charts: Chart[];
@@ -32,6 +34,8 @@ export interface ProjectData {
 export interface DataTable {
   id: string;
   name: string;
+  description?: string;
+  descriptionIsAI?: boolean;
   data: any[];
   columns: ColumnInfo[];
   createdAt: string;

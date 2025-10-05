@@ -220,7 +220,12 @@ const DataImport: React.FC<DataImportProps> = ({ onImport, onCancel }) => {
           }}
         >
           {loading ? (
-            <div>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
               <div style={{ marginBottom: '12px' }}>
                 <div className="spinner"></div>
               </div>
