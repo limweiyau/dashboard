@@ -18,23 +18,23 @@ const DataImport: React.FC<DataImportProps> = ({ onImport, onCancel }) => {
       const filePath = await window.electronAPI.selectFile();
       if (!filePath) return;
 
-      const fileContent = await window.electronAPI.readFile(filePath);
       const extension = filePath.toLowerCase().split('.').pop();
-
       let result;
 
       switch (extension) {
         case 'csv':
-          result = await processCSV(fileContent);
+        case 'json': {
+          const fileContent = await window.electronAPI.readFile(filePath);
+          result = extension === 'csv' ? await processCSV(fileContent) : processJSON(fileContent);
           break;
-        case 'json':
-          result = processJSON(fileContent);
-          break;
+        }
         case 'xlsx':
-        case 'xls':
-          // For Excel files, we need to read as binary - skip for now
-          throw new Error('Excel files not supported in file path mode. Please drag and drop the file instead.');
+        case 'xls': {
+          // For Excel files, read as binary buffer
+          const arrayBuffer = await window.electronAPI.readFileAsBuffer(filePath);
+          result = await processExcel(arrayBuffer);
           break;
+        }
         default:
           throw new Error('Unsupported file format. Please use CSV, JSON, or Excel files.');
       }
