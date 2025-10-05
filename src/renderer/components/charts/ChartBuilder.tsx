@@ -385,9 +385,17 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       const chartPanelWidth = maxContainerWidth * 0.65; // 65% for chart panel
       const availableWidth = chartPanelWidth - 40; // Subtract padding
 
+      // Calculate available height from computedPanelHeight
+      const availableHeight = computedPanelHeight - 32; // Subtract padding (16px top + 16px bottom)
+
       // Ensure chart doesn't exceed container bounds and maintains good proportions
       const containerWidth = Math.min(availableWidth * 0.95, window.innerWidth * 0.55);
-      const containerHeight = containerWidth * (2/3); // More compact 3:2 aspect ratio
+      let containerHeight = containerWidth * (2/3); // 3:2 aspect ratio
+
+      // IMPORTANT: Constrain height to available vertical space
+      if (containerHeight > availableHeight) {
+        containerHeight = availableHeight;
+      }
 
       setChartDimensions({
         containerWidth: Math.max(300, containerWidth), // Minimum width
@@ -408,7 +416,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       window.removeEventListener('resize', handleResize);
       clearTimeout(timer);
     };
-  }, []);
+  }, [computedPanelHeight]);
 
   // Auto-hide navbar on scroll
   useEffect(() => {

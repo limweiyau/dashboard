@@ -10,6 +10,7 @@ interface ExportConfigurationModalProps {
   chartsWithAnalysis: Set<string>;
   chartThumbnails: Record<string, { dataUrl: string; capturedAt: number }>;
   analysisContentByChart: Record<string, string>;
+  chartAIOptions: Record<string, { analysis: boolean; insights: boolean }>;
   analysisAvailableCount: number;
   totalSelectedCount: number;
   isCapturingAssets: boolean;
@@ -21,6 +22,7 @@ interface ExportConfigurationModalProps {
   onSelectAllCharts: () => void;
   onClearAllCharts: () => void;
   onReorderCharts: (startIndex: number, endIndex: number) => void;
+  onChartAIOptionsChange: (chartId: string, updates: Partial<{ analysis: boolean; insights: boolean }>) => void;
   onBack: () => void;
   onCancel: () => void;
   onGenerate: () => void;
@@ -115,6 +117,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   chartsWithAnalysis,
   chartThumbnails,
   analysisContentByChart,
+  chartAIOptions,
   analysisAvailableCount,
   totalSelectedCount,
   isCapturingAssets,
@@ -126,6 +129,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   onSelectAllCharts,
   onClearAllCharts,
   onReorderCharts,
+  onChartAIOptionsChange,
   onBack,
   onCancel,
   onGenerate
@@ -371,6 +375,10 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             {page.charts.map((chart, index) => {
               const thumbnail = chartThumbnails[chart.id];
               const analysis = analysisContentByChart[chart.id]?.trim();
+              const aiOptions = chartAIOptions[chart.id] || {
+                analysis: config.includeAIAnalysis,
+                insights: config.includeAIInsights
+              };
 
               // Use shared parsing utility for consistent analysis/insights separation
               const { analysisContent, insightsContent } = parseAnalysisContent(analysis || '');
@@ -379,6 +387,9 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               // Normalize content by removing any header prefixes
               const narrativeParagraphs = analysisContent ? [normalizeInsightText(analysisContent)] : [];
               const bulletLines = insightsContent ? [normalizeInsightText(insightsContent)] : [];
+              const includeAnalysisForChart = config.includeAnalysis && aiOptions.analysis;
+              const includeInsightsForChart = config.includeAnalysis && aiOptions.insights;
+              const shouldRenderAIContent = (includeAnalysisForChart && analysisContent) || (includeInsightsForChart && insightsContent);
 
               return (
                 <div key={chart.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%' }}>
@@ -463,7 +474,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     )}
                   </div>
 
-                  {(config.includeAIAnalysis || config.includeAIInsights) && (analysisContent || insightsContent) && (
+                  {shouldRenderAIContent && (
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -472,7 +483,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       overflow: 'hidden'
                     }}>
                       {/* Analysis Block */}
-                      {config.includeAIAnalysis && analysisContent && (
+                      {includeAnalysisForChart && analysisContent && (
                       <div style={{
                         background: 'linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)',
                         borderRadius: '8px',
@@ -507,7 +518,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       )}
 
                       {/* Insights Block */}
-                      {config.includeAIInsights && insightsContent && (
+                      {includeInsightsForChart && insightsContent && (
                       <div style={{
                         background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
                         borderRadius: '8px',
@@ -1072,6 +1083,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     const thumbnail = chartThumbnails[chart.id];
                     const isDragging = draggedIndex === index;
                     const isDraggedOver = dragOverIndex === index;
+                    const aiOptions = chartAIOptions[chart.id] || {
+                      analysis: config.includeAIAnalysis,
+                      insights: config.includeAIInsights
+                    };
+                    const aiControlsDisabled = !config.includeAnalysis;
 
                     return (
                       <div key={chart.id} style={{ position: 'relative' }}>
@@ -1219,17 +1235,19 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                   <div
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleInputChange('includeAIAnalysis')({ target: { value: !config.includeAIAnalysis } } as any);
+                                      if (aiControlsDisabled) return;
+                                      onChartAIOptionsChange(chart.id, { analysis: !aiOptions.analysis });
                                     }}
                                     style={{
                                       width: '32px',
                                       height: '18px',
                                       borderRadius: '9px',
-                                      background: config.includeAIAnalysis ? '#10b981' : '#d1d5db',
+                                      background: aiOptions.analysis ? '#10b981' : '#d1d5db',
                                       position: 'relative',
-                                      cursor: 'pointer',
+                                      cursor: aiControlsDisabled ? 'not-allowed' : 'pointer',
                                       transition: 'background 0.2s ease',
-                                      flexShrink: 0
+                                      flexShrink: 0,
+                                      opacity: aiControlsDisabled ? 0.5 : 1
                                     }}
                                   >
                                     <div
@@ -1240,13 +1258,13 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                         background: 'white',
                                         position: 'absolute',
                                         top: '2px',
-                                        left: config.includeAIAnalysis ? '16px' : '2px',
+                                        left: aiOptions.analysis ? '16px' : '2px',
                                         transition: 'left 0.2s ease',
                                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
                                       }}
                                     />
                                   </div>
-                                  <span style={{ fontWeight: 500 }}>Detailed Analysis</span>
+                                  <span style={{ fontWeight: 500, opacity: aiControlsDisabled ? 0.6 : 1 }}>Detailed Analysis</span>
                                 </div>
 
                                 <div
@@ -1261,17 +1279,19 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                   <div
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleInputChange('includeAIInsights')({ target: { value: !config.includeAIInsights } } as any);
+                                      if (aiControlsDisabled) return;
+                                      onChartAIOptionsChange(chart.id, { insights: !aiOptions.insights });
                                     }}
                                     style={{
                                       width: '32px',
                                       height: '18px',
                                       borderRadius: '9px',
-                                      background: config.includeAIInsights ? '#10b981' : '#d1d5db',
+                                      background: aiOptions.insights ? '#10b981' : '#d1d5db',
                                       position: 'relative',
-                                      cursor: 'pointer',
+                                      cursor: aiControlsDisabled ? 'not-allowed' : 'pointer',
                                       transition: 'background 0.2s ease',
-                                      flexShrink: 0
+                                      flexShrink: 0,
+                                      opacity: aiControlsDisabled ? 0.5 : 1
                                     }}
                                   >
                                     <div
@@ -1282,13 +1302,13 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                         background: 'white',
                                         position: 'absolute',
                                         top: '2px',
-                                        left: config.includeAIInsights ? '16px' : '2px',
+                                        left: aiOptions.insights ? '16px' : '2px',
                                         transition: 'left 0.2s ease',
                                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
                                       }}
                                     />
                                   </div>
-                                  <span style={{ fontWeight: 500 }}>Key Insights</span>
+                                  <span style={{ fontWeight: 500, opacity: aiControlsDisabled ? 0.6 : 1 }}>Key Insights</span>
                                 </div>
                               </div>
                             )}
@@ -1533,4 +1553,3 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 };
 
 export default ExportConfigurationModal;
-

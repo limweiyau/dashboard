@@ -221,6 +221,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       confidentialStatus: 'Confidential'
     };
   });
+  const [exportChartAIOptions, setExportChartAIOptions] = useState<Record<string, { analysis: boolean; insights: boolean }>>({});
   const [isCapturingExportAssets, setIsCapturingExportAssets] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const selectedExportCharts = useMemo(() => {
@@ -1290,6 +1291,18 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       };
     });
 
+    setExportChartAIOptions(prev => {
+      const next: Record<string, { analysis: boolean; insights: boolean }> = {};
+      chartIds.forEach(id => {
+        const existing = prev[id] ?? {
+          analysis: exportConfig.includeAIAnalysis,
+          insights: exportConfig.includeAIInsights
+        };
+        next[id] = existing;
+      });
+      return next;
+    });
+
     setExportStage('config'); // Skip selection stage, go straight to config
     setShowExportFlow(true);
     setIsCapturingExportAssets(true);
@@ -1310,22 +1323,58 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     setShowExportFlow(false);
     setExportStage('selection');
     setIsCapturingExportAssets(false);
+    setExportChartAIOptions({});
   };
 
   const handleToggleExportChart = (chartId: string) => {
-    setSelectedExportChartIds(prev => (
-      prev.includes(chartId)
+    setSelectedExportChartIds(prev => {
+      const isSelected = prev.includes(chartId);
+      const next = isSelected
         ? prev.filter(id => id !== chartId)
-        : [...prev, chartId]
-    ));
+        : [...prev, chartId];
+
+      setExportChartAIOptions(prevOptions => {
+        if (isSelected) {
+          const { [chartId]: _removed, ...rest } = prevOptions;
+          return rest;
+        }
+
+        if (prevOptions[chartId]) {
+          return prevOptions;
+        }
+
+        return {
+          ...prevOptions,
+          [chartId]: {
+            analysis: exportConfig.includeAIAnalysis,
+            insights: exportConfig.includeAIInsights
+          }
+        };
+      });
+
+      return next;
+    });
   };
 
   const handleExportSelectAll = () => {
-    setSelectedExportChartIds(projectData.charts.map(chart => chart.id));
+    const allIds = projectData.charts.map(chart => chart.id);
+    setSelectedExportChartIds(allIds);
+    setExportChartAIOptions(prev => {
+      const next: Record<string, { analysis: boolean; insights: boolean }> = {};
+      allIds.forEach(id => {
+        const existing = prev[id] ?? {
+          analysis: exportConfig.includeAIAnalysis,
+          insights: exportConfig.includeAIInsights
+        };
+        next[id] = existing;
+      });
+      return next;
+    });
   };
 
   const handleExportClearAll = () => {
     setSelectedExportChartIds([]);
+    setExportChartAIOptions({});
   };
 
   const handleReorderCharts = (startIndex: number, endIndex: number) => {
@@ -1372,6 +1421,18 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       };
     });
 
+    setExportChartAIOptions(prev => {
+      const next: Record<string, { analysis: boolean; insights: boolean }> = {};
+      selectedExportChartIds.forEach(id => {
+        const existing = prev[id] ?? {
+          analysis: exportConfig.includeAIAnalysis,
+          insights: exportConfig.includeAIInsights
+        };
+        next[id] = existing;
+      });
+      return next;
+    });
+
     setExportStage('config');
     setIsCapturingExportAssets(true);
     setExportError(null);
@@ -1416,6 +1477,22 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       return next;
     });
   };
+
+  const handleChartAIOptionsChange = useCallback((chartId: string, updates: Partial<{ analysis: boolean; insights: boolean }>) => {
+    setExportChartAIOptions(prev => {
+      const existing = prev[chartId] ?? {
+        analysis: exportConfig.includeAIAnalysis,
+        insights: exportConfig.includeAIInsights
+      };
+      return {
+        ...prev,
+        [chartId]: {
+          ...existing,
+          ...updates
+        }
+      };
+    });
+  }, [exportConfig.includeAIAnalysis, exportConfig.includeAIInsights]);
 
   const handleExportLogoUpload = (file: File) => {
     const reader = new FileReader();
@@ -1476,12 +1553,25 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   };
 
   const handleExportGenerate = () => {
-    const preparedCharts = selectedExportCharts.map(chart => ({
-      id: chart.id,
-      name: chart.name,
-      thumbnail: selectedChartThumbnailsMap[chart.id]?.dataUrl || null,
-      analysis: exportConfig.includeAnalysis ? selectedChartAnalyses[chart.id] || null : null
-    }));
+    const preparedCharts = selectedExportCharts.map(chart => {
+      const aiOptions = exportChartAIOptions[chart.id] ?? {
+        analysis: exportConfig.includeAIAnalysis,
+        insights: exportConfig.includeAIInsights
+      };
+      const includeAnalysisForChart = exportConfig.includeAnalysis && aiOptions.analysis;
+      const includeInsightsForChart = exportConfig.includeAnalysis && aiOptions.insights;
+
+      return {
+        id: chart.id,
+        name: chart.name,
+        thumbnail: selectedChartThumbnailsMap[chart.id]?.dataUrl || null,
+        analysis: includeAnalysisForChart ? selectedChartAnalyses[chart.id] || null : null,
+        aiOptions: {
+          includeAnalysis: includeAnalysisForChart,
+          includeInsights: includeInsightsForChart
+        }
+      };
+    });
 
     console.log('Export report payload preview', {
       config: exportConfig,
@@ -1688,59 +1778,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     const totalTableCount = allTables.length;
 
     return (
-      <div style={{ padding: '24px' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px'
-        }}>
-          <h3 style={{
-            margin: 0,
-            fontSize: '18px',
-            fontWeight: '600',
-            color: '#1e293b'
-          }}>
-            Tables ({totalTableCount})
-          </h3>
-          <button
-            onClick={() => setShowDataImport(true)}
-            style={{
-              padding: '8px 16px',
-              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Upload Table
-          </button>
-        </div>
+      <div style={{ padding: '24px', background: '#f8fafc', minHeight: 'calc(100vh - 200px)' }}>
 
         {totalTableCount > 0 ? (
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px'
+            gap: '16px'
           }}>
             {allTables.map((table, index) => {
               const tablesOffset = projectData.data?.length > 0 ? 1 : 0;
@@ -1816,17 +1860,16 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(table.name);
     const [description, setDescription] = useState(table.description || '');
+    const [originalDescription, setOriginalDescription] = useState(table.description || '');
     const [isEditingDescription, setIsEditingDescription] = useState(false);
     const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
     const [isAIGenerated, setIsAIGenerated] = useState(table.descriptionIsAI || false);
 
     useEffect(() => {
       setDescription(table.description || '');
-    }, [table.description]);
-
-    useEffect(() => {
+      setOriginalDescription(table.description || '');
       setIsAIGenerated(table.descriptionIsAI || false);
-    }, [table.id, table.descriptionIsAI]);
+    }, [table.id]);
 
     const handleSave = () => {
       if (editName.trim() && editName !== table.name) {
@@ -1861,7 +1904,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         const selectedModel = settings?.selectedModels?.gemini || 'gemini-2.5-flash';
         const rowCount = Array.isArray(table.data) ? table.data.length : 0;
         const columnInfo = table.columns.map((c: any) => `${c.name} (${c.type})`).join(', ');
-        const prompt = `Write a professional, business-focused description of this data table in one sentence. Table: "${table.name}" with ${rowCount} records. Fields: ${columnInfo}. Focus on what this data tracks or measures. Maximum 100 characters. No quotes. Be concise and clear.`;
+        const prompt = `Write a professional, business-focused description of this data table in one sentence. Table: "${table.name}" with ${rowCount} records. Fields: ${columnInfo}. Focus on what this data tracks or measures. Keep it under 200 characters. No quotes. Be concise and clear.`;
 
         const result = await geminiClient.generateContent(prompt, selectedModel);
         const generatedDesc = result.trim();
@@ -1870,8 +1913,9 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           return;
         }
 
-        const newDescription = generatedDesc.slice(0, 100);
+        const newDescription = generatedDesc.slice(0, 200);
         setDescription(newDescription);
+        setOriginalDescription(newDescription);
         setIsAIGenerated(true);
         onDescriptionUpdate(newDescription, true);
       } catch (error) {
@@ -1886,71 +1930,53 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     };
 
     const handleDescriptionSave = () => {
-      setIsAIGenerated(false); // Reset AI flag when manually edited
-      onDescriptionUpdate(description, false);
+      // Only reset AI flag if description actually changed
+      const descriptionChanged = description !== originalDescription;
+      if (descriptionChanged) {
+        setIsAIGenerated(false);
+        onDescriptionUpdate(description, false);
+        setOriginalDescription(description);
+      } else {
+        // No change, just preserve AI flag
+        onDescriptionUpdate(description, isAIGenerated);
+      }
       setIsEditingDescription(false);
     };
 
     return (
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #e5e7eb',
-        borderRadius: '10px',
-        padding: '18px 24px',
-        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '24px',
-        position: 'relative',
-        borderLeft: '4px solid transparent'
-      }}
-      onMouseEnter={(e) => {
-        const borderLeft = e.currentTarget.querySelector('[data-border-left]') as HTMLElement;
-        if (borderLeft) {
-          borderLeft.style.background = 'linear-gradient(to right, rgba(59, 130, 246, 0.08) 0%, transparent 100%)';
-        }
-        e.currentTarget.style.boxShadow = '0 8px 20px rgba(59, 130, 246, 0.15)';
-        e.currentTarget.style.transform = 'translateX(6px)';
-        e.currentTarget.style.borderColor = '#d1d5db';
-        e.currentTarget.style.borderLeftColor = '#3b82f6';
-      }}
-      onMouseLeave={(e) => {
-        const borderLeft = e.currentTarget.querySelector('[data-border-left]') as HTMLElement;
-        if (borderLeft) {
-          borderLeft.style.background = 'transparent';
-        }
-        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.08)';
-        e.currentTarget.style.transform = 'translateX(0)';
-        e.currentTarget.style.borderColor = '#e5e7eb';
-        e.currentTarget.style.borderLeftColor = 'transparent';
-      }}
-      >
-        {/* Hover background overlay */}
-        <div
-          data-border-left
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: '120px',
-            background: 'transparent',
-            borderRadius: '10px 0 0 10px',
-            transition: 'background 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-            pointerEvents: 'none',
-            zIndex: 0
-          }}
-        />
-        {/* Table Name with Stats */}
-        <div style={{
-          display: 'flex',
+      <div
+        style={{
+          background: 'linear-gradient(to right, #ffffff 0%, #fafbfc 100%)',
+          border: '1px solid #e5e7eb',
+          borderRadius: '12px',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto',
+          gap: '48px',
           alignItems: 'center',
-          gap: '12px',
-          minWidth: '300px',
           position: 'relative',
-          zIndex: 1
-        }}>
+          overflow: 'hidden',
+          padding: '24px',
+          minHeight: '100px',
+          borderLeft: '4px solid transparent'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.12)';
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.borderLeftColor = '#3b82f6';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.06)';
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.borderLeftColor = 'transparent';
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        {/* HEADER + ROWS X COLUMNS */}
+        <div style={{ minWidth: '220px' }}>
           {isEditing ? (
             <input
               type="text"
@@ -1959,103 +1985,114 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               onBlur={handleSave}
               onKeyPress={(e) => e.key === 'Enter' && handleSave()}
               style={{
-                fontSize: '14px',
+                fontSize: '16px',
                 fontWeight: '600',
                 border: '2px solid #3b82f6',
-                borderRadius: '6px',
-                padding: '6px 10px',
+                borderRadius: '8px',
+                padding: '10px 12px',
                 outline: 'none',
-                flex: 1
+                width: '100%',
+                color: '#0f172a'
               }}
               autoFocus
             />
           ) : (
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div
                 style={{
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer'
+                  gap: '8px'
                 }}
                 onClick={() => setIsEditing(true)}
               >
                 <h4 style={{
                   margin: 0,
                   fontSize: '15px',
-                  fontWeight: '700',
-                  color: '#111827'
+                  fontWeight: '600',
+                  color: '#0f172a',
+                  letterSpacing: '-0.01em',
+                  lineHeight: '1.4'
                 }}>
                   {table.name}
                 </h4>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{
-                  opacity: 0.4,
-                  transition: 'opacity 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
-                >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
               </div>
-              <span style={{
-                fontSize: '11px',
-                color: '#9ca3af',
-                fontWeight: '500',
-                whiteSpace: 'nowrap'
+              <div style={{
+                fontSize: '13px',
+                color: '#64748b',
+                fontWeight: '500'
               }}>
                 {table.data.length.toLocaleString()} rows × {table.columns.length} columns
-              </span>
-            </>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Description */}
+        {/* DESCRIPTION */}
         <div style={{
-          flex: 1,
+          paddingLeft: '24px',
+          borderLeft: '2px solid #e2e8f0',
+          minWidth: '200px',
+          alignSelf: 'stretch',
           display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          position: 'relative',
-          zIndex: 1
+          alignItems: 'center'
         }}>
           {isEditingDescription ? (
-            <div style={{ display: 'flex', gap: '6px', flex: 1, alignItems: 'center' }}>
+            <div onClick={(e) => e.stopPropagation()}>
               <input
                 type="text"
                 value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 100))}
+                onChange={(e) => setDescription(e.target.value.slice(0, 200))}
                 onBlur={handleDescriptionSave}
                 onKeyPress={(e) => e.key === 'Enter' && handleDescriptionSave()}
                 placeholder="Add a description..."
+                onClick={(e) => e.stopPropagation()}
                 style={{
-                  fontSize: '12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
+                  fontSize: '14px',
+                  border: '2px solid #3b82f6',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
                   outline: 'none',
-                  flex: 1,
-                  color: '#6b7280'
+                  width: '100%',
+                  color: '#1e293b',
+                  background: 'white',
+                  fontWeight: '500'
                 }}
                 autoFocus
               />
-              <span style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap' }}>
-                {description.length}/100
-              </span>
+              <div style={{
+                fontSize: '12px',
+                color: description.length > 180 ? '#dc2626' : '#94a3b8',
+                marginTop: '4px',
+                fontWeight: '500'
+              }}>
+                {description.length}/200 characters
+              </div>
             </div>
           ) : (
             <div
-              onClick={() => setIsEditingDescription(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditingDescription(true);
+              }}
               style={{
-                fontSize: '12px',
-                color: description ? '#6b7280' : '#9ca3af',
+                fontSize: '14px',
+                color: description ? '#64748b' : '#94a3b8',
                 fontStyle: description ? 'normal' : 'italic',
                 cursor: 'pointer',
-                flex: 1,
+                lineHeight: '1.6',
+                fontWeight: '500',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                wordBreak: 'break-word'
               }}
             >
               {description || 'Click to add a description...'}
@@ -2063,14 +2100,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           )}
         </div>
 
-        {/* Actions */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          position: 'relative',
-          zIndex: 1
-        }}>
+        {/* ACTION BUTTONS */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -2078,33 +2109,52 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             }}
             disabled={isGeneratingDescription}
             style={{
-              padding: '7px 16px',
-              background: isGeneratingDescription ? '#f3f4f6' : '#eff6ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: '7px',
-              fontSize: '12px',
+              padding: '10px 20px',
+              background: isGeneratingDescription ? '#e2e8f0' : '#64748b',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '13px',
               fontWeight: '600',
-              color: isGeneratingDescription ? '#9ca3af' : '#2563eb',
+              color: isGeneratingDescription ? '#64748b' : 'white',
               cursor: isGeneratingDescription ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              height: 'fit-content',
+              boxShadow: '0 2px 8px rgba(100, 116, 139, 0.25)'
+            }}
+            onMouseEnter={(e) => {
+              if (!isGeneratingDescription) {
+                e.currentTarget.style.background = '#475569';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(100, 116, 139, 0.35)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isGeneratingDescription) {
+                e.currentTarget.style.background = '#64748b';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(100, 116, 139, 0.25)';
+              }
             }}
           >
             {isGeneratingDescription ? 'Generating...' : (isAIGenerated ? 'Regenerate' : 'Generate Description')}
           </button>
+
           <button
             onClick={onView}
             style={{
-              padding: '7px 16px',
+              padding: '10px 20px',
               background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
               color: 'white',
               border: 'none',
-              borderRadius: '7px',
+              borderRadius: '8px',
               cursor: 'pointer',
-              fontSize: '12px',
+              fontSize: '13px',
               fontWeight: '600',
               transition: 'all 0.2s',
-              boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)'
+              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)',
+              whiteSpace: 'nowrap',
+              height: 'fit-content'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-1px)';
@@ -2112,33 +2162,37 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 2px 6px rgba(59, 130, 246, 0.25)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.25)';
             }}
           >
             View
           </button>
+
           <button
             onClick={onDelete}
             style={{
-              padding: '7px 16px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#ef4444',
+              padding: '10px 20px',
+              background: 'linear-gradient(135deg, #f87171 0%, #ef4444 100%)',
+              border: 'none',
+              color: 'white',
               cursor: 'pointer',
-              borderRadius: '7px',
+              borderRadius: '8px',
               transition: 'all 0.2s',
-              fontSize: '12px',
-              fontWeight: '600'
+              fontSize: '13px',
+              fontWeight: '600',
+              whiteSpace: 'nowrap',
+              height: 'fit-content',
+              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#fee2e2';
-              e.currentTarget.style.borderColor = '#fca5a5';
-              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.35)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#fef2f2';
-              e.currentTarget.style.borderColor = '#fecaca';
-              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #f87171 0%, #ef4444 100%)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(239, 68, 68, 0.25)';
             }}
           >
             Delete
@@ -2732,6 +2786,43 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
             </button>
           )}
 
+          {activeTab === 'data' && !selectedChart && (
+            <button
+              onClick={() => setShowDataImport(true)}
+              style={{
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(79, 70, 229, 0.35)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.25)';
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Upload Table
+            </button>
+          )}
+
           {activeTab === 'charts' && !selectedChart && (
             <div style={{ display: 'flex', gap: '12px' }}>
               <button
@@ -2882,6 +2973,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           chartsWithAnalysis={chartsWithAnalysisSet}
           chartThumbnails={chartThumbnails}
           analysisContentByChart={selectedChartAnalyses}
+          chartAIOptions={exportChartAIOptions}
           analysisAvailableCount={analysisAvailableCount}
           totalSelectedCount={selectedExportChartIds.length}
           isCapturingAssets={isCapturingExportAssets}
@@ -2893,6 +2985,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           onSelectAllCharts={handleExportSelectAll}
           onClearAllCharts={handleExportClearAll}
           onReorderCharts={handleReorderCharts}
+          onChartAIOptionsChange={handleChartAIOptionsChange}
           onBack={handleExportBackToSelection}
           onCancel={handleCloseExportFlow}
           onGenerate={handleExportGenerate}
@@ -3010,9 +3103,9 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                         textAlign: 'left',
                         background: col.type === 'date' ? 'linear-gradient(180deg, #dbeafe 0%, #eff6ff 100%)' :
                                    col.type === 'number' ? 'linear-gradient(180deg, #dcfce7 0%, #f0fdf4 100%)' :
-                                   'linear-gradient(180deg, #f3f4f6 0%, #f9fafb 100%)',
+                                   'linear-gradient(180deg, #f3e8ff 0%, #faf5ff 100%)',
                         borderBottom: col.type === 'date' ? '2px solid #93c5fd' :
-                                     col.type === 'number' ? '2px solid #86efac' : '2px solid #d1d5db',
+                                     col.type === 'number' ? '2px solid #86efac' : '2px solid #c084fc',
                         whiteSpace: 'nowrap'
                       }}>
                         <div style={{
@@ -3031,11 +3124,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                             fontSize: '10px',
                             fontWeight: '600',
                             color: col.type === 'date' ? '#1e40af' :
-                                   col.type === 'number' ? '#166534' : '#6b7280',
+                                   col.type === 'number' ? '#166534' : '#7c3aed',
                             textTransform: 'lowercase',
                             letterSpacing: '0.3px'
                           }}>
-                            {col.type}
+                            {col.type === 'number' ? 'values' : col.type}
                           </span>
                         </div>
                       </th>
