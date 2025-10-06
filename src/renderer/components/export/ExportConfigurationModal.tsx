@@ -550,7 +550,15 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               <div style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.28em', color: primaryColor, fontWeight: 600 }}>
                 Contents
               </div>
-              <div style={{ fontSize: '36px', fontWeight: 700, color: '#0f172a', marginTop: '14px' }}>
+              <div
+                style={{
+                  fontSize: '36px',
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  marginTop: '14px',
+                  wordSpacing: '0.3em'
+                }}
+              >
                 Table of Contents
               </div>
               <div style={{ fontSize: '16px', color: '#475569', marginTop: '14px', maxWidth: '520px' }}>
@@ -614,7 +622,15 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               <div style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.28em', color: primaryColor, fontWeight: 600 }}>
                 Executive Summary
               </div>
-              <div style={{ fontSize: '36px', fontWeight: 700, color: '#0f172a', marginTop: '14px' }}>
+              <div
+                style={{
+                  fontSize: '36px',
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  marginTop: '14px',
+                  wordSpacing: '0.3em'
+                }}
+              >
                 Report Overview
               </div>
               <div style={{ fontSize: '16px', color: '#475569', marginTop: '14px', maxWidth: '520px' }}>
@@ -770,20 +786,34 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginTop: '4px' }}>
                         {chart.name || 'Untitled Chart'}
                       </div>
-                      <div style={{
-                        marginTop: '4px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        color: '#0f172a',
-                        background: 'rgba(59, 130, 246, 0.14)',
-                        borderRadius: '999px',
-                        padding: '4px 12px'
-                      }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '999px', background: primaryColor }}></span>
-                        {chart.type || 'Custom Visualization'}
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-start',
+                          gap: '6px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          background: 'rgba(59, 130, 246, 0.14)',
+                          borderRadius: '999px',
+                          padding: '5px 12px',
+                          lineHeight: 1,
+                          width: 'fit-content'
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '999px',
+                            background: primaryColor,
+                            flexShrink: 0,
+                            display: 'block'
+                          }}
+                        ></span>
+                        <span>{chart.type || 'Custom Visualization'}</span>
                       </div>
                     </div>
                   </div>
@@ -799,18 +829,21 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     flex: '0 0 auto',
                     position: 'relative'
                   }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      border: '2px solid #a855f7',
-                      borderRadius: '12px',
-                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
-                      pointerEvents: 'none',
-                      zIndex: 10
-                    }}></div>
+                    <div
+                      data-export-remove="true"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        border: '2px solid #a855f7',
+                        borderRadius: '12px',
+                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+                        pointerEvents: 'none',
+                        zIndex: 10
+                      }}
+                    ></div>
                     {thumbnail ? (
                       <img
                         src={thumbnail.dataUrl}

@@ -1470,17 +1470,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     });
 
     setExportStage('config');
-    setIsCapturingExportAssets(true);
+    setIsCapturingExportAssets(false);
     setExportError(null);
 
-    try {
-      await captureChartThumbnails(selectedExportChartIds, { force: true, scale: 2 });
-    } catch (error) {
-      console.error('Failed to prepare chart previews for export', error);
-      setExportError('Failed to prepare some chart previews. Please ensure charts are visible and try again.');
-    } finally {
-      setIsCapturingExportAssets(false);
-    }
+    // Don't capture thumbnails here - they'll be captured when Generate Report is clicked
+    // This way any edits to the preview will be reflected in the final PDF
   };
 
   useEffect(() => {
@@ -1598,13 +1592,52 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     setExportStage('selection');
   };
 
-  const handleExportGenerate = async () => {
-    if (isCapturingExportAssets) {
+  const waitForDocumentFonts = async () => {
+    if (typeof document === 'undefined') {
       return;
     }
+    const fontSet = (document as any).fonts as FontFaceSet | undefined;
+    if (!fontSet?.ready) {
+      return;
+    }
+    try {
+      await Promise.race([
+        fontSet.ready,
+        new Promise<void>(resolve => window.setTimeout(resolve, 2000))
+      ]);
+    } catch (error) {
+      console.warn('Timed out waiting for fonts before export', error);
+    }
+  };
 
-    if (typeof window === 'undefined') {
-      setExportError('Report export is only available within the application window.');
+  const prepareCloneForPdfCapture = (clone: HTMLElement) => {
+    clone.querySelectorAll('[data-export-remove="true"]').forEach(node => {
+      node.parentElement?.removeChild(node);
+    });
+
+    const elements = clone.querySelectorAll<HTMLElement>('*');
+    elements.forEach(element => {
+      element.style.transition = 'none';
+      element.style.animation = 'none';
+
+      const computed = window.getComputedStyle(element);
+      if (computed.filter && computed.filter !== 'none') {
+        element.style.filter = 'none';
+      }
+      if ((computed as any).backdropFilter && (computed as any).backdropFilter !== 'none') {
+        (element.style as any).backdropFilter = 'none';
+      }
+      if (computed.mixBlendMode && computed.mixBlendMode !== 'normal') {
+        element.style.mixBlendMode = 'normal';
+      }
+      if (computed.backgroundColor === 'rgba(0, 0, 0, 0)' && computed.backgroundImage === 'none') {
+        element.style.backgroundColor = 'transparent';
+      }
+    });
+  };
+
+  const handleExportGenerate = async () => {
+    if (isCapturingExportAssets) {
       return;
     }
 
@@ -1628,46 +1661,63 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
     try {
       const pdf = new jsPDF(pdfOptions);
-      const deviceScale = window.devicePixelRatio || 1;
-      const captureScale = Math.max(3, Math.ceil(deviceScale * 2));
 
       for (let index = 0; index < previewNodes.length; index++) {
         const node = previewNodes[index];
-        const clone = node.cloneNode(true) as HTMLElement;
-        clone.style.position = 'fixed';
-        clone.style.top = '0';
-        clone.style.left = '-99999px';
-        clone.style.pointerEvents = 'none';
-        clone.style.transform = 'none';
-        clone.style.transformOrigin = 'top left';
-        clone.style.zIndex = '-1';
-        clone.style.background = '#ffffff';
 
-        document.body.appendChild(clone);
+        // Get the element's position and dimensions on screen
+        const rect = node.getBoundingClientRect();
 
-        let canvas: HTMLCanvasElement;
-        try {
-          canvas = await html2canvas(clone, {
-            backgroundColor: '#ffffff',
-            scale: captureScale,
-            useCORS: true,
-            logging: false,
-            allowTaint: false,
-            removeContainer: false,
-            imageTimeout: 0,
-            width: clone.offsetWidth,
-            height: clone.offsetHeight
-          });
-        } finally {
-          document.body.removeChild(clone);
+        // Create a canvas and draw the element
+        const canvas = document.createElement('canvas');
+        const scale = 2; // 2x for better quality
+        canvas.width = rect.width * scale;
+        canvas.height = rect.height * scale;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          throw new Error('Failed to get canvas context');
         }
 
-        const imageData = canvas.toDataURL('image/jpeg', 0.95);
+        // Scale the context to match our scale
+        ctx.scale(scale, scale);
+
+        // Draw white background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, rect.width, rect.height);
+
+        // Capture the preview element
+        const renderedCanvas = await html2canvas(node, {
+          backgroundColor: '#ffffff',
+          scale: scale,
+          useCORS: true,
+          logging: false,
+          allowTaint: false,
+          removeContainer: false,
+          imageTimeout: 0,
+          width: rect.width,
+          height: rect.height,
+          onclone: (clonedDoc) => {
+            // Ensure no filters or effects are applied
+            const allElements = clonedDoc.querySelectorAll('*');
+            allElements.forEach((el: any) => {
+              if (el.style) {
+                el.style.filter = 'none';
+                el.style.backdropFilter = 'none';
+                el.style.opacity = el.style.opacity || '1';
+              }
+            });
+          }
+        });
+
+        // Convert to JPEG with higher quality to reduce fogginess
+        const imageData = renderedCanvas.toDataURL('image/jpeg', 0.95);
+
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
-        const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
-        const renderWidth = canvas.width * ratio;
-        const renderHeight = canvas.height * ratio;
+        const ratio = Math.min(pageWidth / renderedCanvas.width, pageHeight / renderedCanvas.height);
+        const renderWidth = renderedCanvas.width * ratio;
+        const renderHeight = renderedCanvas.height * ratio;
         const offsetX = (pageWidth - renderWidth) / 2;
         const offsetY = (pageHeight - renderHeight) / 2;
 
@@ -1675,7 +1725,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           pdf.addPage(pdfOptions.format, pdfOptions.orientation);
         }
 
-        pdf.addImage(imageData, 'JPEG', offsetX, offsetY, renderWidth, renderHeight, undefined, 'MEDIUM');
+        pdf.addImage(imageData, 'JPEG', offsetX, offsetY, renderWidth, renderHeight, undefined, 'FAST');
       }
 
       const sanitizedTitle = (exportConfig.reportTitle || 'report')
@@ -1689,7 +1739,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       pdf.save(filename);
     } catch (error) {
       console.error('Failed to generate report PDF', error);
-      setExportError('Failed to generate the report PDF. Please try again.');
+      setExportError(`Failed to generate the report PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsCapturingExportAssets(false);
     }
