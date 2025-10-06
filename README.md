@@ -8,12 +8,28 @@ A powerful native desktop application for data visualization and dashboard creat
 
 ## ✨ Features
 
+### Data & Visualization
 - **📊 Professional Charts**: Bar, line, pie, scatter, area charts with full customization
+- **🎨 Advanced Chart Builder**: Trend lines, gradients, custom colors, and styling
+- **📈 Chart Analysis**: AI-powered insights and pattern detection for each chart
 - **🎛️ Interactive Dashboards**: Drag-and-drop builder with real-time editing
 - **📄 Smart Import**: CSV, JSON, Excel files with automatic type detection
+
+### AI & Insights
 - **🤖 AI Integration**: Google Gemini-powered insights and chart suggestions
-- **📱 Export Ready**: Generate professional PDF reports with branding
+- **💡 Executive Summaries**: Auto-generated report overviews with key highlights
+- **📊 Chart Intelligence**: Automatic pattern detection and recommendations
+
+### Export & Sharing
+- **📱 PDF Reports**: Professional multi-page reports with custom branding
+- **✏️ Inline Editing**: Edit project names, chart titles, and summaries directly
+- **📑 Table of Contents**: Auto-generated navigation for multi-chart reports
+- **🎯 High-Quality Output**: 3x scaled rendering with PNG export for crisp visuals
+
+### Privacy & Performance
 - **🔒 Privacy First**: All data processing happens locally
+- **⚡ Fast Rendering**: Optimized D3.js charts with smooth animations
+- **💾 Local Storage**: Projects and data never leave your device
 
 ## 🚀 Quick Start
 
@@ -61,9 +77,11 @@ npm run dev
 
 - **Frontend**: React 18 + TypeScript
 - **Desktop**: Electron 25
-- **Charts**: D3.js + Chart.js
-- **Data**: Papa Parse + SheetJS
-- **AI**: Google Generative AI
+- **Charts**: D3.js v7 (custom implementations)
+- **Data Processing**: Papa Parse + SheetJS (xlsx)
+- **AI**: Google Generative AI (Gemini)
+- **PDF Generation**: jsPDF + html2canvas
+- **Build**: Webpack 5 + TypeScript
 
 ## 📦 Build for Production
 
@@ -97,13 +115,26 @@ npm run electron
 
 ```
 src/
-├── main/                 # Electron main process
-│   ├── main.ts          # App entry point
-│   └── preload.ts       # IPC bridge
-└── renderer/            # React frontend
-    ├── components/      # UI components
-    ├── types/          # TypeScript definitions
-    └── utils/          # Helper functions
+├── main/                      # Electron main process
+│   ├── main.ts               # App entry point & window management
+│   └── preload.ts            # IPC bridge for secure communication
+└── renderer/                  # React frontend
+    ├── components/
+    │   ├── SimpleDashboard.tsx       # Main dashboard component
+    │   ├── charts/
+    │   │   ├── ChartBuilder.tsx      # Interactive chart creation
+    │   │   └── ChartRenderer.tsx     # D3.js rendering engine
+    │   ├── export/
+    │   │   └── ExportConfigurationModal.tsx  # PDF export UI
+    │   ├── FileUploadModal.tsx       # Data import
+    │   └── SettingsModal.tsx         # API configuration
+    ├── types/
+    │   └── index.ts                  # TypeScript definitions
+    ├── polyfills.js                  # Node.js globals for renderer
+    └── index.tsx                     # React entry point
+
+webpack.config.js                     # Build configuration
+package.json                          # Dependencies & scripts
 ```
 
 ## 🔐 Privacy & Security
