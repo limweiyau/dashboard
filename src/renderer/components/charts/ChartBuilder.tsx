@@ -161,19 +161,45 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const categoricalColumns = currentTableData.columns.filter(col => col.type === 'string' || col.type === 'date');
   const allColumns = currentTableData.columns;
 
-  // Configuration panel sizing constants
+  // Detect zoom level and apply curved scaling
+  const devicePixelRatio = window.devicePixelRatio || 1;
+
+  // Curved scaling function: more aggressive at higher zoom levels
+  const calculateZoomScale = (ratio: number): number => {
+    if (ratio <= 1) return 1; // No scaling at 100% or below
+
+    // Exponential curve: slightly more aggressive scaling at higher zoom levels
+    // At 150% (1.5): scale ≈ 0.87
+    // At 200% (2.0): scale ≈ 0.76
+    // At 250% (2.5): scale ≈ 0.68
+    const exponent = 1.0; // Controls curve aggressiveness (slightly more aggressive)
+    return Math.pow(1 / ratio, exponent);
+  };
+
+  const zoomScale = calculateZoomScale(devicePixelRatio);
+
+  // Configuration panel sizing constants - with zoom-aware scaling
   const CONFIG_HEADER_HEIGHT = 56;
   const TAB_NAV_HEIGHT = 64;
   const FOOTER_HEIGHT = 82;
   const PANEL_PADDING_ALLOWANCE = 24; // additional breathing room
-  const PANEL_MIN_HEIGHT = 560;
+
+  // Base values (at 100% zoom) - reduced for shorter containers
+  const BASE_PANEL_MIN_HEIGHT = 400;
+  const BASE_PANEL_MAX_HEIGHT = 800;
+  const BASE_MIN_VH = 35;
+
+  // Apply zoom scaling
+  const PANEL_MIN_HEIGHT = Math.round(BASE_PANEL_MIN_HEIGHT * zoomScale);
+  const PANEL_MAX_HEIGHT = Math.round(BASE_PANEL_MAX_HEIGHT * zoomScale);
+  const SCALED_MIN_VH = Math.round(BASE_MIN_VH * zoomScale);
 
   const computedPanelHeight = Math.min(
     Math.max(
       chartDimensions.previewHeight + CONFIG_HEADER_HEIGHT + TAB_NAV_HEIGHT + FOOTER_HEIGHT + PANEL_PADDING_ALLOWANCE,
       PANEL_MIN_HEIGHT
     ),
-    1200
+    PANEL_MAX_HEIGHT
   );
 
   // Helper function to generate columns from data if not provided
@@ -924,7 +950,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         display: 'flex',
         flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
         height: layoutMode === 'vertical' ? 'auto' : 'auto',
-        minHeight: '55vh',
+        minHeight: `${SCALED_MIN_VH}vh`,
         gap: layoutMode === 'vertical' ? '16px' : '12px',
         maxWidth: window.innerWidth > 1600 ? '95vw' : '1600px',
         width: '100%',
