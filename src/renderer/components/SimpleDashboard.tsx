@@ -5,6 +5,7 @@ import { safeNumber, roundToMaxDecimals } from '../utils/numberUtils';
 import ChartBuilder from './charts/ChartBuilder';
 import ChartRenderer from './charts/ChartRenderer';
 import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import DataImport from './DataImport';
 import { processCSV, processExcel, processJSON } from '../utils/dataProcessor';
 import ChartAnalysisModal from './ChartAnalysisModal';
@@ -1597,33 +1598,101 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     setExportStage('selection');
   };
 
-  const handleExportGenerate = () => {
-    const preparedCharts = selectedExportCharts.map(chart => {
-      const aiOptions = exportChartAIOptions[chart.id] ?? {
-        analysis: exportConfig.includeAIAnalysis,
-        insights: exportConfig.includeAIInsights
-      };
-      const includeAnalysisForChart = exportConfig.includeAnalysis && aiOptions.analysis;
-      const includeInsightsForChart = exportConfig.includeAnalysis && aiOptions.insights;
+  const handleExportGenerate = async () => {
+    if (isCapturingExportAssets) {
+      return;
+    }
 
-      return {
-        id: chart.id,
-        name: chart.name,
-        thumbnail: selectedChartThumbnailsMap[chart.id]?.dataUrl || null,
-        analysis: includeAnalysisForChart ? selectedChartAnalyses[chart.id] || null : null,
-        aiOptions: {
-          includeAnalysis: includeAnalysisForChart,
-          includeInsights: includeInsightsForChart
+    if (typeof window === 'undefined') {
+      setExportError('Report export is only available within the application window.');
+      return;
+    }
+
+    const previewNodes = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-report-page="true"]')
+    );
+
+    if (previewNodes.length === 0) {
+      setExportError('No report preview detected. Please ensure the preview is visible before generating.');
+      return;
+    }
+
+    const pdfOptions = {
+      orientation: exportConfig.orientation === 'landscape' ? 'landscape' : 'portrait',
+      unit: 'pt' as const,
+      format: exportConfig.pageSize === 'Letter' ? 'letter' : 'a4'
+    };
+
+    setIsCapturingExportAssets(true);
+    setExportError(null);
+
+    try {
+      const pdf = new jsPDF(pdfOptions);
+      const deviceScale = window.devicePixelRatio || 1;
+      const captureScale = Math.max(3, Math.ceil(deviceScale * 2));
+
+      for (let index = 0; index < previewNodes.length; index++) {
+        const node = previewNodes[index];
+        const clone = node.cloneNode(true) as HTMLElement;
+        clone.style.position = 'fixed';
+        clone.style.top = '0';
+        clone.style.left = '-99999px';
+        clone.style.pointerEvents = 'none';
+        clone.style.transform = 'none';
+        clone.style.transformOrigin = 'top left';
+        clone.style.zIndex = '-1';
+        clone.style.background = '#ffffff';
+
+        document.body.appendChild(clone);
+
+        let canvas: HTMLCanvasElement;
+        try {
+          canvas = await html2canvas(clone, {
+            backgroundColor: '#ffffff',
+            scale: captureScale,
+            useCORS: true,
+            logging: false,
+            allowTaint: false,
+            removeContainer: false,
+            imageTimeout: 0,
+            width: clone.offsetWidth,
+            height: clone.offsetHeight
+          });
+        } finally {
+          document.body.removeChild(clone);
         }
-      };
-    });
 
-    console.log('Export report payload preview', {
-      config: exportConfig,
-      charts: preparedCharts
-    });
+        const imageData = canvas.toDataURL('image/jpeg', 0.95);
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+        const renderWidth = canvas.width * ratio;
+        const renderHeight = canvas.height * ratio;
+        const offsetX = (pageWidth - renderWidth) / 2;
+        const offsetY = (pageHeight - renderHeight) / 2;
 
-    setExportError('Report generation is not yet implemented. Chart previews are ready for export.');
+        if (index > 0) {
+          pdf.addPage(pdfOptions.format, pdfOptions.orientation);
+        }
+
+        pdf.addImage(imageData, 'JPEG', offsetX, offsetY, renderWidth, renderHeight, undefined, 'MEDIUM');
+      }
+
+      const sanitizedTitle = (exportConfig.reportTitle || 'report')
+        .trim()
+        .replace(/[^a-z0-9]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'report';
+      const reportDate = exportConfig.reportDate || new Date().toISOString().split('T')[0];
+
+      const filename = `${sanitizedTitle}-${reportDate}.pdf`;
+      pdf.save(filename);
+    } catch (error) {
+      console.error('Failed to generate report PDF', error);
+      setExportError('Failed to generate the report PDF. Please try again.');
+    } finally {
+      setIsCapturingExportAssets(false);
+    }
   };
 
   const handleGenerateAnalysis = async (chart: Chart) => {

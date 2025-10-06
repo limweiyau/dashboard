@@ -1052,6 +1052,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       }}
                     >
                       <div
+                        data-report-page="true"
+                        data-page-index={index}
                         style={{
                           width: pageDimensions.width,
                           height: pageDimensions.height,
@@ -2264,33 +2266,33 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
             }}>
               <button
                 onClick={onGenerate}
-                disabled={isCapturingAssets || totalSelectedCount === 0}
+                disabled={isCapturingAssets || totalSelectedCount === 0 || isGeneratingExecutiveSummary}
                 style={{
                   width: '100%',
-                  background: isCapturingAssets || totalSelectedCount === 0
+                  background: isCapturingAssets || totalSelectedCount === 0 || isGeneratingExecutiveSummary
                     ? '#a7f3d0'
                     : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                  color: isCapturingAssets || totalSelectedCount === 0 ? '#166534' : 'white',
+                  color: isCapturingAssets || totalSelectedCount === 0 || isGeneratingExecutiveSummary ? '#166534' : 'white',
                   border: 'none',
                   borderRadius: '10px',
                   padding: '12px 24px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  cursor: isCapturingAssets || totalSelectedCount === 0 ? 'not-allowed' : 'pointer',
-                  boxShadow: isCapturingAssets || totalSelectedCount === 0
+                  cursor: isCapturingAssets || totalSelectedCount === 0 || isGeneratingExecutiveSummary ? 'not-allowed' : 'pointer',
+                  boxShadow: isCapturingAssets || totalSelectedCount === 0 || isGeneratingExecutiveSummary
                     ? 'none'
                     : '0 4px 12px rgba(22, 163, 74, 0.25), 0 2px 4px rgba(0, 0, 0, 0.05)',
                   transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
-                  if (!isCapturingAssets && totalSelectedCount > 0) {
+                  if (!isCapturingAssets && totalSelectedCount > 0 && !isGeneratingExecutiveSummary) {
                     e.currentTarget.style.background = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)';
                     e.currentTarget.style.transform = 'translateY(-1px)';
                     e.currentTarget.style.boxShadow = '0 6px 16px rgba(22, 163, 74, 0.3), 0 2px 4px rgba(0, 0, 0, 0.08)';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isCapturingAssets && totalSelectedCount > 0) {
+                  if (!isCapturingAssets && totalSelectedCount > 0 && !isGeneratingExecutiveSummary) {
                     e.currentTarget.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
                     e.currentTarget.style.transform = 'translateY(0px)';
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.25), 0 2px 4px rgba(0, 0, 0, 0.05)';
