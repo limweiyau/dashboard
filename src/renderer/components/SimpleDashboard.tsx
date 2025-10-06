@@ -242,6 +242,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       analysisSummary: 'No chart analysis is available yet',
       includeExecutiveSummary: true,
       executiveSummaryContent: storedExecutiveSummary?.content || '',
+      executiveSummaryPlainText: '',
       executiveHighlights: storedExecutiveSummary?.highlights || [],
       orientation: 'portrait',
       pageSize: 'A4',

@@ -20,7 +20,8 @@ export interface ExportReportConfig {
   includeAIInsights: boolean;
   analysisSummary: string;
   includeExecutiveSummary: boolean;
-  executiveSummaryContent: string;
+  executiveSummaryContent: string; // HTML content for display and editing
+  executiveSummaryPlainText?: string; // Plain text for character counting
   executiveHighlights: ExecutiveHighlight[];
   orientation: ExportOrientation;
   pageSize: ExportPageSize;

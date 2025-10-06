@@ -180,7 +180,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 
   // Initialize editor content on mount or when content/subtab changes from external source
   useEffect(() => {
-    if (!editorRef.current || contentSubTab !== 'summary') return;
+    if (!editorRef.current) return;
+
+    // Only update when on summary tab
+    if (contentSubTab !== 'summary') return;
+
+    const currentEditorHTML = editorRef.current.innerHTML || '';
 
     // Clear editor if content is empty
     if (config.executiveSummaryContent === '') {
@@ -189,19 +194,38 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
       return;
     }
 
-    // On initial load or when AI generates new content, render markdown to HTML
-    if (isInitialLoadRef.current || config.executiveSummaryContent.includes('**')) {
-      const rendered = renderMarkdownForEditor(config.executiveSummaryContent);
-      editorRef.current.innerHTML = rendered;
+    // Update editor if:
+    // 1. Initial load
+    // 2. Content contains markdown (AI generated) - convert to HTML
+    // 3. Editor HTML doesn't match stored HTML (external update)
+    if (isInitialLoadRef.current) {
+      // First load - check if content is markdown or HTML
+      if (config.executiveSummaryContent.includes('**')) {
+        // Markdown - convert to HTML
+        const rendered = renderMarkdownForEditor(config.executiveSummaryContent);
+        editorRef.current.innerHTML = rendered;
+      } else {
+        // Already HTML - use directly
+        editorRef.current.innerHTML = config.executiveSummaryContent;
+      }
       isInitialLoadRef.current = false;
+    } else if (currentEditorHTML !== config.executiveSummaryContent) {
+      // External update (from AI or storage) - update editor
+      if (config.executiveSummaryContent.includes('**')) {
+        const rendered = renderMarkdownForEditor(config.executiveSummaryContent);
+        editorRef.current.innerHTML = rendered;
+      } else {
+        editorRef.current.innerHTML = config.executiveSummaryContent;
+      }
     }
   }, [config.executiveSummaryContent, contentSubTab]);
 
   const handleEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const newText = e.currentTarget.innerText || '';
+    const htmlContent = e.currentTarget.innerHTML || '';
+    const plainText = e.currentTarget.innerText || '';
 
     // Calculate effective length (newlines count as 100 chars)
-    const effectiveLength = newText.split('').reduce((count, char) => {
+    const effectiveLength = plainText.split('').reduce((count, char) => {
       return count + (char === '\n' ? 100 : 1);
     }, 0);
 
@@ -210,8 +234,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
       return;
     }
 
-    // Store plain text for character counting, but preserve HTML in editor
-    onConfigChange({ executiveSummaryContent: newText });
+    // Store HTML content (preserves formatting) and plain text (for character counting)
+    onConfigChange({
+      executiveSummaryContent: htmlContent,
+      executiveSummaryPlainText: plainText
+    });
   };
 
   const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -678,7 +705,9 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     paddingRight: '8px'
                   }}
                   dangerouslySetInnerHTML={{
-                    __html: renderMarkdown(config.executiveSummaryContent)
+                    __html: config.executiveSummaryContent.includes('**')
+                      ? renderMarkdown(config.executiveSummaryContent)
+                      : config.executiveSummaryContent
                   }}
                 />
               ) : (
@@ -1511,6 +1540,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                   executiveHighlights: []
                                 });
 
+                                // Also clear the editor directly
+                                if (editorRef.current) {
+                                  editorRef.current.innerHTML = '';
+                                }
+
                                 setIsGeneratingExecutiveSummary(true);
                                 try {
                                   const { GeminiClient } = await import('../../utils/geminiClient');
@@ -1697,7 +1731,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                           }}>
                             <span style={{
                               color: (() => {
-                                const effectiveLength = (config.executiveSummaryContent || '').split('').reduce((count, char) => {
+                                const plainText = config.executiveSummaryPlainText || config.executiveSummaryContent || '';
+                                const effectiveLength = plainText.split('').reduce((count, char) => {
                                   return count + (char === '\n' ? 100 : 1);
                                 }, 0);
                                 return effectiveLength > 3500 * 0.9
@@ -1708,13 +1743,15 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                               })()
                             }}>
                               {(() => {
-                                const effectiveLength = (config.executiveSummaryContent || '').split('').reduce((count, char) => {
+                                const plainText = config.executiveSummaryPlainText || config.executiveSummaryContent || '';
+                                const effectiveLength = plainText.split('').reduce((count, char) => {
                                   return count + (char === '\n' ? 100 : 1);
                                 }, 0);
                                 return `${effectiveLength} / 3500 characters`;
                               })()}
                               {(() => {
-                                const effectiveLength = (config.executiveSummaryContent || '').split('').reduce((count, char) => {
+                                const plainText = config.executiveSummaryPlainText || config.executiveSummaryContent || '';
+                                const effectiveLength = plainText.split('').reduce((count, char) => {
                                   return count + (char === '\n' ? 100 : 1);
                                 }, 0);
                                 return effectiveLength >= 3500 ? ' (limit reached)' : '';
