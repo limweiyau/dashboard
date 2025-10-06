@@ -172,6 +172,63 @@ CRITICAL REQUIREMENTS:
     return await this.generateContent(prompt, modelName);
   }
 
+  async generateExecutiveSummary(charts: any[], projectData: any, config: any, modelName: string = 'gemini-2.5-flash'): Promise<string> {
+    if (!this.genAI) {
+      throw new Error('API key not set');
+    }
+
+    // Aggregate data from all selected charts
+    const chartSummaries = charts.map(chart => {
+      const chartType = chart.configuration?.templateId || 'unknown';
+      const title = chart.configuration?.title || chart.title || 'Untitled Chart';
+
+      // Extract basic chart info for context
+      return {
+        title,
+        type: chartType,
+        dataPoints: chart.data?.datasets?.[0]?.data?.length || 0
+      };
+    });
+
+    // Calculate key statistics
+    const totalCharts = charts.length;
+    const totalDataPoints = chartSummaries.reduce((sum, chart) => sum + chart.dataPoints, 0);
+    const chartTypes = [...new Set(chartSummaries.map(chart => chart.type))];
+
+    // Get project metadata
+    const projectName = projectData?.name || config.reportTitle || 'Data Analysis Report';
+    const reportDate = config.reportDate || new Date().toISOString().split('T')[0];
+
+    const prompt = `
+Generate an executive summary for a data analysis report. Do NOT include title, date, or headers - just the content.
+
+DATA CONTEXT:
+- Total Charts: ${totalCharts}
+- Total Data Points: ${totalDataPoints}
+- Chart Types: ${chartTypes.join(', ')}
+- Charts: ${chartSummaries.map(chart => `${chart.title} (${chart.type})`).join(', ')}
+
+STRUCTURE (no section headers, just content):
+1. Overview (30-50 words): Report scope and purpose
+2. Key Findings (50-70 words): Main insights and patterns
+3. Data Summary (25-40 words): Dataset statistics and coverage
+4. Recommendations (40-60 words): Strategic next steps
+
+CRITICAL REQUIREMENTS:
+- MAXIMUM 1500 characters total
+- NO titles, headers, or "Executive Summary:" text
+- Professional, executive-appropriate language
+- Focus on business impact and actionable insights
+- Use markdown formatting (**bold**, bullet points)
+- Present tense, active voice
+- Target 145-220 words (1200-1500 characters)
+
+Generate ONLY the executive summary content:
+`;
+
+    return await this.generateContent(prompt, modelName);
+  }
+
   async suggestChartTypes(data: any[], columns: any[], modelName: string = 'gemini-2.5-flash'): Promise<string[]> {
     if (!this.genAI) {
       throw new Error('API key not set');

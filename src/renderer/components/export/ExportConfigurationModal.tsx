@@ -1,5 +1,5 @@
 import React, { ChangeEvent, useMemo, useState } from 'react';
-import { Chart } from '../../types';
+import { Chart, Settings } from '../../types';
 import { ExportReportConfig, ConfidentialStatus } from './types';
 import { parseAnalysisContent } from '../../utils/analysisParser';
 
@@ -15,6 +15,7 @@ interface ExportConfigurationModalProps {
   totalSelectedCount: number;
   isCapturingAssets: boolean;
   exportError: string | null;
+  settings?: Settings;
   onConfigChange: (updates: Partial<ExportReportConfig>) => void;
   onLogoUpload: (file: File) => void;
   onLogoClear: () => void;
@@ -120,8 +121,22 @@ type TocEntry = {
 
 type PreviewPage =
   | { type: 'cover' }
+  | { type: 'executive-summary' }
   | { type: 'toc'; entries: TocEntry[] }
   | { type: 'charts'; charts: Chart[]; startIndex: number };
+
+// Add CSS animation for spinner
+const spinnerStyle = document.createElement('style');
+if (!document.querySelector('#spinner-animation')) {
+  spinnerStyle.id = 'spinner-animation';
+  spinnerStyle.textContent = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(spinnerStyle);
+}
 
 const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   config,
@@ -135,6 +150,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   totalSelectedCount,
   isCapturingAssets,
   exportError,
+  settings,
   onConfigChange,
   onLogoUpload,
   onLogoClear,
@@ -152,6 +168,174 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   const [contentSubTab, setContentSubTab] = useState<'summary' | 'charts' | 'layout'>('charts');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isGeneratingExecutiveSummary, setIsGeneratingExecutiveSummary] = useState(false);
+
+  // Rich text editor functions
+  const MAX_EXECUTIVE_SUMMARY_CHARS = 1500;
+
+  const handleRichTextInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const editor = e.currentTarget;
+
+    // Save cursor position before any changes
+    const selection = window.getSelection();
+    let cursorPosition = 0;
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const preCaretRange = range.cloneRange();
+      preCaretRange.selectNodeContents(editor);
+      preCaretRange.setEnd(range.endContainer, range.endOffset);
+      cursorPosition = preCaretRange.toString().length;
+    }
+
+    // Get text content including newlines and spaces
+    const textContent = editor.innerText || '';
+
+    // Enforce strict character limit (including newlines, spaces, everything)
+    if (textContent.length <= MAX_EXECUTIVE_SUMMARY_CHARS) {
+      onConfigChange({ executiveSummaryContent: textContent });
+    } else {
+      // Truncate content if it exceeds limit
+      const truncatedContent = textContent.substring(0, MAX_EXECUTIVE_SUMMARY_CHARS);
+      onConfigChange({ executiveSummaryContent: truncatedContent });
+
+      // Prevent updating editor content to avoid cursor jumping
+      e.preventDefault();
+
+      // Update editor content manually
+      editor.innerText = truncatedContent;
+
+      // Restore cursor position (or set to end if position was beyond truncation)
+      const newCursorPosition = Math.min(cursorPosition, truncatedContent.length);
+
+      setTimeout(() => {
+        const range = document.createRange();
+        const selection = window.getSelection();
+
+        try {
+          if (editor.firstChild) {
+            range.setStart(editor.firstChild, Math.min(newCursorPosition, editor.firstChild.textContent?.length || 0));
+            range.setEnd(editor.firstChild, Math.min(newCursorPosition, editor.firstChild.textContent?.length || 0));
+          } else {
+            range.setStart(editor, 0);
+            range.setEnd(editor, 0);
+          }
+
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        } catch (error) {
+          // Fallback: set cursor to end
+          range.selectNodeContents(editor);
+          range.collapse(false);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+      }, 0);
+    }
+  };
+
+  const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const editor = e.currentTarget;
+    const currentLength = (editor.innerText || '').length;
+
+    // Allow navigation keys, deletion keys, and shortcuts even at limit
+    const allowedKeys = [
+      'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+      'Home', 'End', 'PageUp', 'PageDown', 'Tab', 'Escape'
+    ];
+
+    // Prevent typing new characters if at limit (except if text is selected for replacement)
+    if (currentLength >= MAX_EXECUTIVE_SUMMARY_CHARS && !allowedKeys.includes(e.key)) {
+      const selection = window.getSelection();
+      const hasSelection = selection && selection.toString().length > 0;
+
+      // Allow if user has selected text (they're replacing it) or using shortcuts
+      if (!hasSelection && !(e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Handle keyboard shortcuts
+    if (e.ctrlKey || e.metaKey) {
+      switch (e.key.toLowerCase()) {
+        case 'b':
+          e.preventDefault();
+          document.execCommand('bold');
+          break;
+        case 'i':
+          e.preventDefault();
+          document.execCommand('italic');
+          break;
+        case 'u':
+          e.preventDefault();
+          document.execCommand('underline');
+          break;
+      }
+    }
+  };
+
+  // Render markdown for the editor (convert markdown to HTML for display)
+  const renderMarkdownForEditor = (text: string) => {
+    if (!text) return '';
+
+    let html = text
+      // Headers
+      .replace(/^### (.*$)/gim, '<h3 style="font-size: 18px; font-weight: 600; margin: 8px 0; color: #1f2937;">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 style="font-size: 20px; font-weight: 600; margin: 10px 0; color: #1f2937;">$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1 style="font-size: 24px; font-weight: 700; margin: 12px 0; color: #111827;">$1</h1>')
+      // Bold and Italic
+      .replace(/\*\*\*(.*?)\*\*\*/g, '<strong style="font-weight: 700;"><em>$1</em></strong>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      // Inline code
+      .replace(/`(.*?)`/g, '<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-family: Monaco, monospace; font-size: 12px;">$1</code>')
+      // Quotes
+      .replace(/^> (.*$)/gim, '<blockquote style="margin: 8px 0; padding: 8px 16px; border-left: 4px solid #e5e7eb; background-color: #f9fafb; font-style: italic;">$1</blockquote>')
+      // Lists - handle bullet points
+      .replace(/^- (.*$)/gim, '<div style="margin: 2px 0;">• $1</div>')
+      // Lists - handle numbered lists
+      .replace(/^\d+\. (.*$)/gim, '<div style="margin: 2px 0;">$&</div>')
+      // Line breaks
+      .replace(/\n/g, '<br/>');
+
+    return html;
+  };
+
+  // Simple markdown renderer for preview
+  const renderMarkdown = (text: string) => {
+    if (!text) return '';
+
+    let html = text
+      // Headers
+      .replace(/^### (.*$)/gim, '<h3 style="font-size: 18px; font-weight: 600; margin: 16px 0 8px 0; color: #1f2937;">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 style="font-size: 20px; font-weight: 600; margin: 20px 0 10px 0; color: #1f2937;">$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1 style="font-size: 24px; font-weight: 700; margin: 24px 0 12px 0; color: #111827;">$1</h1>')
+      // Bold and Italic
+      .replace(/\*\*\*(.*?)\*\*\*/g, '<strong style="font-weight: 700;"><em>$1</em></strong>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      // Inline code
+      .replace(/`(.*?)`/g, '<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-family: Monaco, monospace; font-size: 12px;">$1</code>')
+      // Quotes
+      .replace(/^> (.*$)/gim, '<blockquote style="margin: 12px 0; padding: 8px 16px; border-left: 4px solid #e5e7eb; background-color: #f9fafb; font-style: italic;">$1</blockquote>')
+      // Lists - handle bullet points
+      .replace(/^- (.*$)/gim, '<li style="margin: 4px 0; list-style-type: disc;">$1</li>')
+      // Lists - handle numbered lists
+      .replace(/^\d+\. (.*$)/gim, '<li style="margin: 4px 0; list-style-type: decimal;">$1</li>')
+      // Line breaks
+      .replace(/\n/g, '<br/>');
+
+    // Wrap consecutive list items in ul/ol tags
+    html = html.replace(/((<li[^>]*>.*?<\/li><br\/>)+)/g, (match) => {
+      const hasNumbers = match.includes('list-style-type: decimal');
+      const tag = hasNumbers ? 'ol' : 'ul';
+      const listContent = match.replace(/<br\/>/g, '');
+      return `<${tag} style="margin: 8px 0; padding-left: 20px;">${listContent}</${tag}>`;
+    });
+
+    return html;
+  };
+
   const [expandedChartId, setExpandedChartId] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -223,6 +407,17 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
     }));
 
     const entries: TocEntry[] = [{ title: 'Cover', pageNumber: 1 }];
+    let pageCounter = 2;
+
+    // TOC is now page 2
+    const tocPageNumber = pageCounter;
+    pageCounter++;
+
+    // Add executive summary to TOC if enabled (now comes after TOC)
+    if (config.includeExecutiveSummary) {
+      entries.push({ title: 'Executive Summary', pageNumber: pageCounter });
+      pageCounter++;
+    }
 
     if (chartPages.length > 0) {
       chartPages.forEach((page, idx) => {
@@ -236,16 +431,28 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
         entries.push({
           title: chartNames,
           subtitle: chartTypes,
-          pageNumber: idx + 3
+          pageNumber: pageCounter + idx
         });
       });
     } else {
-      entries.push({ title: 'Report Overview', pageNumber: 2 });
+      entries.push({ title: 'Report Overview', pageNumber: pageCounter });
     }
 
     const tocPage: PreviewPage = { type: 'toc', entries };
-    return [{ type: 'cover' }, tocPage, ...chartPages];
-  }, [chunkedChartPages]);
+    const pages: PreviewPage[] = [{ type: 'cover' }];
+
+    // Add table of contents first
+    pages.push(tocPage);
+
+    // Add executive summary page after TOC if enabled
+    if (config.includeExecutiveSummary) {
+      pages.push({ type: 'executive-summary' });
+    }
+
+    // Add chart pages last
+    pages.push(...chartPages);
+    return pages;
+  }, [chunkedChartPages, config.includeExecutiveSummary, config.executiveSummaryContent]);
 
   const totalPages = pages.length;
 
@@ -373,6 +580,114 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        );
+
+      case 'executive-summary':
+        // Calculate summary statistics
+        const totalCharts = selectedCharts.length;
+        const totalDataPoints = selectedCharts.reduce((sum, chart) => {
+          return sum + ((chart as any).data?.datasets?.[0]?.data?.length || 0);
+        }, 0);
+        const chartTypes = [...new Set(selectedCharts.map(chart =>
+          (chart as any).configuration?.templateId || (chart as any).type || 'Unknown'
+        ))];
+
+        return (
+          <div style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '64px 72px',
+            background: '#ffffff',
+            overflow: 'hidden'
+          }}>
+            <div style={{ marginBottom: '36px' }}>
+              <div style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.28em', color: primaryColor, fontWeight: 600 }}>
+                Executive Summary
+              </div>
+              <div style={{ fontSize: '36px', fontWeight: 700, color: '#0f172a', marginTop: '14px' }}>
+                Report Overview
+              </div>
+              <div style={{ fontSize: '16px', color: '#475569', marginTop: '14px', maxWidth: '520px' }}>
+                Key insights and statistical overview of the data analysis performed.
+              </div>
+            </div>
+
+            {/* Statistics Section */}
+            <div style={{
+              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+              borderRadius: '12px',
+              padding: '24px',
+              marginBottom: '32px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a', marginBottom: '16px' }}>
+                Analysis Statistics
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 700, color: primaryColor }}>
+                    {totalCharts}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    Charts Analyzed
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 700, color: primaryColor }}>
+                    {totalDataPoints.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    Data Points
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 700, color: primaryColor }}>
+                    {chartTypes.length}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    Chart Types
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Executive Summary Content */}
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {config.executiveSummaryContent ? (
+                <div
+                  style={{
+                    fontSize: '14px',
+                    lineHeight: 1.6,
+                    color: '#374151',
+                    height: '100%',
+                    overflow: 'hidden',
+                    wordWrap: 'break-word',
+                    paddingRight: '8px'
+                  }}
+                  dangerouslySetInnerHTML={{
+                    __html: renderMarkdown(config.executiveSummaryContent)
+                  }}
+                />
+              ) : (
+                <div style={{
+                  padding: '40px',
+                  textAlign: 'center',
+                  color: '#6b7280',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  border: '1px dashed #d1d5db'
+                }}>
+                  <div style={{ fontSize: '16px', fontWeight: 500, marginBottom: '8px' }}>
+                    No Executive Summary Generated
+                  </div>
+                  <div style={{ fontSize: '14px' }}>
+                    Use the AI generation feature to create an executive summary based on your selected charts.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -1203,22 +1518,229 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 {/* Executive Summary Sub-tab Content */}
                 {contentSubTab === 'summary' && (
                   <div style={cardContainerStyle}>
-                    <div style={cardTitleStyle}>Executive Summary (Coming Soon)</div>
-                    <div style={{
-                      padding: '20px',
-                      textAlign: 'center',
-                      color: '#6b7280',
-                      background: '#f8fafc',
-                      borderRadius: '8px',
-                      border: '1px dashed #d1d5db'
+                    <div style={cardTitleStyle}>Executive Summary</div>
+
+                    {/* Include Executive Summary Toggle */}
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      marginBottom: '16px'
                     }}>
-                      <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: 500 }}>
-                        AI-Powered Executive Summary
-                      </div>
-                      <div style={{ fontSize: '12px', lineHeight: 1.5 }}>
-                        This feature will automatically generate executive summaries based on your selected charts and data insights using AI.
-                      </div>
-                    </div>
+                      <input
+                        type="checkbox"
+                        checked={config.includeExecutiveSummary}
+                        onChange={handleInputChange('includeExecutiveSummary')}
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          accentColor: '#3b82f6'
+                        }}
+                      />
+                      Include Executive Summary in Report
+                    </label>
+
+                    {config.includeExecutiveSummary && (
+                      <>
+                        {/* AI Generation Controls */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                            <button
+                              disabled={isGeneratingExecutiveSummary}
+                              onClick={async () => {
+                                setIsGeneratingExecutiveSummary(true);
+                                try {
+                                  const { GeminiClient } = await import('../../utils/geminiClient');
+                                  const client = new GeminiClient();
+
+                                  // Get API key from settings
+                                  const apiKey = settings?.apiKeys?.gemini;
+                                  if (!apiKey) {
+                                    alert('Please set your Gemini API key in Settings first.');
+                                    setIsGeneratingExecutiveSummary(false);
+                                    return;
+                                  }
+
+                                  client.setApiKey(apiKey);
+                                  const summary = await client.generateExecutiveSummary(
+                                    selectedCharts,
+                                    { name: config.reportTitle },
+                                    config
+                                  );
+                                  // Enforce character limit on AI-generated content
+                                  const truncatedSummary = summary.length > MAX_EXECUTIVE_SUMMARY_CHARS
+                                    ? summary.substring(0, MAX_EXECUTIVE_SUMMARY_CHARS)
+                                    : summary;
+                                  onConfigChange({ executiveSummaryContent: truncatedSummary });
+                                } catch (error) {
+                                  console.error('Failed to generate executive summary:', error);
+                                  alert('Failed to generate executive summary. Please check your API key and try again.');
+                                } finally {
+                                  setIsGeneratingExecutiveSummary(false);
+                                }
+                              }}
+                              style={{
+                                padding: '8px 16px',
+                                border: 'none',
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                color: '#ffffff',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = 'none';
+                              }}
+                            >
+                              {isGeneratingExecutiveSummary ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{
+                                    width: '12px',
+                                    height: '12px',
+                                    border: '2px solid #ffffff40',
+                                    borderTop: '2px solid #ffffff',
+                                    borderRadius: '50%',
+                                    animation: 'spin 1s linear infinite'
+                                  }} />
+                                  Generating...
+                                </div>
+                              ) : (
+                                'Generate'
+                              )}
+                            </button>
+
+                            {config.executiveSummaryContent && (
+                              <button
+                                onClick={() => onConfigChange({ executiveSummaryContent: '' })}
+                                style={{
+                                  padding: '8px 16px',
+                                  border: '1px solid #d1d5db',
+                                  background: '#ffffff',
+                                  color: '#6b7280',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderColor = '#ef4444';
+                                  e.currentTarget.style.color = '#ef4444';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderColor = '#d1d5db';
+                                  e.currentTarget.style.color = '#6b7280';
+                                }}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                            AI will analyze your selected charts ({selectedCharts.length} charts) to generate a comprehensive executive summary.
+                          </div>
+                        </div>
+
+                        {/* Executive Summary Rich Text Editor */}
+                        <div>
+                          <label style={{...fieldLabelStyle, marginTop: '0px'}}>
+                            Executive Summary Content
+                          </label>
+
+                          {isGeneratingExecutiveSummary ? (
+                            // Loading overlay for the editor
+                            <div style={{
+                              ...textareaStyle,
+                              minHeight: '200px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: '#f9fafb',
+                              border: '2px dashed #d1d5db',
+                              position: 'relative'
+                            }}>
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '12px',
+                                color: '#6b7280'
+                              }}>
+                                <div style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  border: '3px solid #d1d5db',
+                                  borderTop: '3px solid #3b82f6',
+                                  borderRadius: '50%',
+                                  animation: 'spin 1s linear infinite'
+                                }} />
+                                <div style={{ fontSize: '14px', fontWeight: 500 }}>
+                                  Generating executive summary...
+                                </div>
+                                <div style={{ fontSize: '12px', textAlign: 'center', maxWidth: '250px' }}>
+                                  AI is analyzing your selected charts to create a comprehensive summary
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              ref={(el) => {
+                                if (el) {
+                                  window.executiveSummaryEditor = el;
+                                }
+                              }}
+                              contentEditable
+                              suppressContentEditableWarning={true}
+                              onInput={handleRichTextInput}
+                              onKeyDown={handleRichTextKeyDown}
+                              dangerouslySetInnerHTML={{
+                                __html: renderMarkdownForEditor(config.executiveSummaryContent)
+                              }}
+                              style={{
+                                ...textareaStyle,
+                                minHeight: '200px',
+                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                fontSize: '14px',
+                                lineHeight: '1.6',
+                                padding: '12px',
+                                whiteSpace: 'pre-wrap',
+                                wordWrap: 'break-word',
+                                overflow: 'auto'
+                              }}
+                              placeholder="Enter executive summary content or use AI generation..."
+                            />
+                          )}
+                          <div style={{
+                            fontSize: '11px',
+                            color: '#6b7280',
+                            marginTop: '4px',
+                            display: 'flex',
+                            justifyContent: 'space-between'
+                          }}>
+                            <span style={{
+                              color: config.executiveSummaryContent.length > MAX_EXECUTIVE_SUMMARY_CHARS * 0.9
+                                ? '#ef4444'
+                                : config.executiveSummaryContent.length > MAX_EXECUTIVE_SUMMARY_CHARS * 0.8
+                                  ? '#f59e0b'
+                                  : '#6b7280'
+                            }}>
+                              {config.executiveSummaryContent.length} / {MAX_EXECUTIVE_SUMMARY_CHARS} characters
+                              {config.executiveSummaryContent.length >= MAX_EXECUTIVE_SUMMARY_CHARS && ' (limit reached)'}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

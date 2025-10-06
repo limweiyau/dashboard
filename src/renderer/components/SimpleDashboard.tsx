@@ -209,6 +209,8 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       includeAIAnalysis: true,
       includeAIInsights: true,
       analysisSummary: 'No chart analysis is available yet',
+      includeExecutiveSummary: false,
+      executiveSummaryContent: '',
       orientation: 'portrait',
       pageSize: 'A4',
       companyName: storedBranding?.companyName ?? 'Your Company',
@@ -2979,6 +2981,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           totalSelectedCount={selectedExportChartIds.length}
           isCapturingAssets={isCapturingExportAssets}
           exportError={exportError}
+          settings={settings}
           onConfigChange={handleExportConfigChange}
           onLogoUpload={handleExportLogoUpload}
           onLogoClear={handleExportLogoClear}

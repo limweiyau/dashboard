@@ -13,6 +13,8 @@ export interface ExportReportConfig {
   includeAIAnalysis: boolean;
   includeAIInsights: boolean;
   analysisSummary: string;
+  includeExecutiveSummary: boolean;
+  executiveSummaryContent: string;
   orientation: ExportOrientation;
   pageSize: ExportPageSize;
   companyName: string;
