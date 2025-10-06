@@ -17,6 +17,8 @@ const App: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+  const [isEditingProjectName, setIsEditingProjectName] = useState(false);
+  const [editedProjectName, setEditedProjectName] = useState('');
   const lastScrollY = useRef(0);
 
 
@@ -122,6 +124,35 @@ const App: React.FC = () => {
     setCurrentView('project');
   };
 
+  const handleProjectNameUpdate = async (projectId: string, newName: string) => {
+    const updatedProjects = projects.map(p =>
+      p.id === projectId ? { ...p, name: newName, updatedAt: new Date().toISOString() } : p
+    );
+    await saveProjects(updatedProjects);
+    if (selectedProject && selectedProject.id === projectId) {
+      setSelectedProject({ ...selectedProject, name: newName });
+    }
+  };
+
+  const handleStartEditProjectName = () => {
+    if (selectedProject) {
+      setEditedProjectName(selectedProject.name);
+      setIsEditingProjectName(true);
+    }
+  };
+
+  const handleSaveProjectName = async () => {
+    if (selectedProject && editedProjectName.trim() && editedProjectName !== selectedProject.name) {
+      await handleProjectNameUpdate(selectedProject.id, editedProjectName.trim());
+    }
+    setIsEditingProjectName(false);
+  };
+
+  const handleCancelEditProjectName = () => {
+    setIsEditingProjectName(false);
+    setEditedProjectName('');
+  };
+
   const renderMainContent = () => {
     if (loading) {
       return (
@@ -206,7 +237,7 @@ const App: React.FC = () => {
           </div>
           
           {/* Navigation buttons */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
               onClick={() => setCurrentView('projects')}
               style={{
@@ -235,13 +266,14 @@ const App: React.FC = () => {
             >
               Projects
             </button>
-            {selectedProject && (
+            {projects.map(project => (
               <button
-                onClick={() => setCurrentView('project')}
+                key={project.id}
+                onClick={() => handleProjectSelect(project)}
                 style={{
-                  background: currentView === 'project' ? '#3b82f6' : 'transparent',
-                  color: currentView === 'project' ? '#ffffff' : '#6b7280',
-                  border: currentView === 'project' ? '1px solid #3b82f6' : '1px solid #e5e7eb',
+                  background: selectedProject?.id === project.id && currentView === 'project' ? '#3b82f6' : 'transparent',
+                  color: selectedProject?.id === project.id && currentView === 'project' ? '#ffffff' : '#6b7280',
+                  border: selectedProject?.id === project.id && currentView === 'project' ? '1px solid #3b82f6' : '1px solid #e5e7eb',
                   padding: '8px 16px',
                   borderRadius: '8px',
                   fontSize: '14px',
@@ -250,21 +282,21 @@ const App: React.FC = () => {
                   transition: 'all 0.2s'
                 }}
                 onMouseEnter={(e) => {
-                  if (currentView !== 'project') {
+                  if (!(selectedProject?.id === project.id && currentView === 'project')) {
                     e.currentTarget.style.background = '#e5e7eb';
                     e.currentTarget.style.color = '#374151';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (currentView !== 'project') {
+                  if (!(selectedProject?.id === project.id && currentView === 'project')) {
                     e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.color = '#6b7280';
                   }
                 }}
               >
-                {selectedProject.name}
+                {project.name}
               </button>
-            )}
+            ))}
           </div>
         </div>
 

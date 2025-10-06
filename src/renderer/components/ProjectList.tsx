@@ -21,6 +21,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
 }) => {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [projectMetrics, setProjectMetrics] = useState<Record<string, ProjectMetrics>>({});
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editedProjectName, setEditedProjectName] = useState('');
 
   useEffect(() => {
     loadProjectMetrics();
@@ -80,6 +82,27 @@ const ProjectList: React.FC<ProjectListProps> = ({
       const updatedProjects = projects.filter(p => p.id !== projectId);
       onProjectsChange(updatedProjects);
     }
+  };
+
+  const handleStartEditProjectName = (project: Project) => {
+    setEditingProjectId(project.id);
+    setEditedProjectName(project.name);
+  };
+
+  const handleSaveProjectName = (projectId: string) => {
+    if (editedProjectName.trim() && editedProjectName !== projects.find(p => p.id === projectId)?.name) {
+      const updatedProjects = projects.map(p =>
+        p.id === projectId ? { ...p, name: editedProjectName.trim(), updatedAt: new Date().toISOString() } : p
+      );
+      onProjectsChange(updatedProjects);
+    }
+    setEditingProjectId(null);
+    setEditedProjectName('');
+  };
+
+  const handleCancelEditProjectName = () => {
+    setEditingProjectId(null);
+    setEditedProjectName('');
   };
 
 
@@ -286,15 +309,59 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 marginBottom: '16px'
               }}>
                 <div style={{ flex: 1, paddingRight: '16px' }}>
-                  <h3 style={{
-                    margin: '0 0 6px 0',
-                    fontSize: '18px',
-                    fontWeight: '700',
-                    color: '#0f172a',
-                    lineHeight: '1.2'
-                  }}>
-                    {project.name}
-                  </h3>
+                  {editingProjectId === project.id ? (
+                    <input
+                      type="text"
+                      value={editedProjectName}
+                      onChange={(e) => setEditedProjectName(e.target.value)}
+                      onBlur={() => handleSaveProjectName(project.id)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter') handleSaveProjectName(project.id);
+                        if (e.key === 'Escape') handleCancelEditProjectName();
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        border: '2px solid #3b82f6',
+                        borderRadius: '6px',
+                        outline: 'none',
+                        marginBottom: '6px'
+                      }}
+                    />
+                  ) : (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEditProjectName(project);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        marginBottom: '6px'
+                      }}
+                    >
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '18px',
+                        fontWeight: '700',
+                        color: '#0f172a',
+                        lineHeight: '1.2'
+                      }}>
+                        {project.name}
+                      </h3>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </div>
+                  )}
                   {project.description && (
                     <p style={{
                       margin: 0,
@@ -316,28 +383,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     handleDeleteProject(project.id);
                   }}
                   style={{
-                    background: '#fef2f2',
-                    border: '1px solid #fecaca',
+                    background: '#dc2626',
+                    border: 'none',
                     padding: '8px 12px',
                     borderRadius: '6px',
                     cursor: 'pointer',
-                    color: '#dc2626',
+                    color: 'white',
                     fontSize: '12px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s ease',
-                    opacity: 1
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#dc2626';
-                    e.currentTarget.style.color = 'white';
-                    e.currentTarget.style.borderColor = '#dc2626';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#fef2f2';
-                    e.currentTarget.style.color = '#dc2626';
-                    e.currentTarget.style.borderColor = '#fecaca';
-                    e.currentTarget.style.transform = 'translateY(0px)';
+                    fontWeight: '600'
                   }}
                   title="Delete Project"
                 >
