@@ -147,7 +147,9 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   onCancel,
   onGenerate
 }) => {
-  const [activeTab, setActiveTab] = useState<'report' | 'content' | 'branding'>('report');
+  const [activeTab, setActiveTab] = useState<'settings' | 'content' | 'branding'>('settings');
+  const [settingsSubTab, setSettingsSubTab] = useState<'settings' | 'classification'>('settings');
+  const [contentSubTab, setContentSubTab] = useState<'summary' | 'charts' | 'layout'>('charts');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [expandedChartId, setExpandedChartId] = useState<string | null>(null);
@@ -865,8 +867,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 background: '#f8fafc'
               }}>
                 {[
-                  { key: 'report', label: 'Report Settings' },
-                  { key: 'content', label: 'Content & Layout' },
+                  { key: 'settings', label: 'Report Settings' },
+                  { key: 'content', label: 'Content' },
                   { key: 'branding', label: 'Branding' }
                 ].map((tab) => (
                   <button
@@ -875,21 +877,26 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                     style={{
                       padding: '8px 16px',
                       border: 'none',
-                      background: 'transparent',
+                      background: activeTab === tab.key
+                        ? 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)'
+                        : 'transparent',
                       fontSize: '13px',
                       fontWeight: 500,
-                      color: activeTab === tab.key ? '#3b82f6' : '#6b7280',
-                      borderBottom: activeTab === tab.key ? '2px solid #3b82f6' : '2px solid transparent',
+                      color: activeTab === tab.key ? '#ffffff' : '#6b7280',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      borderRadius: '6px',
+                      margin: '6px'
                     }}
                     onMouseEnter={(e) => {
                       if (activeTab !== tab.key) {
-                        e.currentTarget.style.color = '#374151';
+                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                        e.currentTarget.style.color = '#3b82f6';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (activeTab !== tab.key) {
+                        e.currentTarget.style.background = 'transparent';
                         e.currentTarget.style.color = '#6b7280';
                       }
                     }}
@@ -912,9 +919,54 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               }}>
 
             {/* Report Settings Tab */}
-            {activeTab === 'report' && (
-            <div style={cardContainerStyle}>
-              <div style={cardTitleStyle}>Report Settings</div>
+            {activeTab === 'settings' && (
+              <div>
+                {/* Settings Sub-tabs */}
+                <div style={{
+                  display: 'flex',
+                  borderBottom: '1px solid #e2e8f0',
+                  marginBottom: '16px',
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                  borderRadius: '8px 8px 0 0'
+                }}>
+                  {[
+                    { key: 'settings', label: 'Settings' },
+                    { key: 'classification', label: 'Classification' }
+                  ].map((subTab) => (
+                    <button
+                      key={subTab.key}
+                      onClick={() => setSettingsSubTab(subTab.key as any)}
+                      style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: settingsSubTab === subTab.key ? '#3b82f6' : '#6b7280',
+                        borderBottom: settingsSubTab === subTab.key ? '2px solid #3b82f6' : '2px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (settingsSubTab !== subTab.key) {
+                          e.currentTarget.style.color = '#374151';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (settingsSubTab !== subTab.key) {
+                          e.currentTarget.style.color = '#6b7280';
+                        }
+                      }}
+                    >
+                      {subTab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Settings Sub-tab Content */}
+                {settingsSubTab === 'settings' && (
+                  <div style={cardContainerStyle}>
+                    <div style={cardTitleStyle}>Basic Settings</div>
               <label style={{...fieldLabelStyle, marginTop: '0px'}} htmlFor="report-title-input">Report Title</label>
               <input
                 id="report-title-input"
@@ -952,9 +1004,69 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 }}
               />
 
-              <label style={{ ...fieldLabelStyle, marginTop: '12px' }}>
-                Classification Level
-              </label>
+              {/* Content Inclusion Options */}
+              <div style={{ marginTop: '20px' }}>
+                <label style={fieldLabelStyle}>Content Inclusion</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={config.includeCharts}
+                      onChange={handleInputChange('includeCharts')}
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        accentColor: '#3b82f6'
+                      }}
+                    />
+                    Include Charts in Report
+                  </label>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '13px',
+                    cursor: analysisAvailableCount > 0 ? 'pointer' : 'not-allowed',
+                    opacity: analysisAvailableCount > 0 ? 1 : 0.6
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={config.includeAnalysis}
+                      onChange={handleInputChange('includeAnalysis')}
+                      disabled={analysisAvailableCount === 0}
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        accentColor: '#3b82f6'
+                      }}
+                    />
+                    Include AI Analysis
+                    {analysisAvailableCount === 0 && (
+                      <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>
+                        (No AI content available)
+                      </span>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+                  </div>
+                )}
+
+                {/* Classification Sub-tab Content */}
+                {settingsSubTab === 'classification' && (
+                  <div style={cardContainerStyle}>
+                    <div style={cardTitleStyle}>Security Classification</div>
+                    <label style={{ ...fieldLabelStyle, marginTop: '0px' }}>
+                      Classification Level
+                    </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {[
                   {
@@ -1037,12 +1149,82 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   );
                 })}
               </div>
-            </div>
+                  </div>
+                )}
+              </div>
             )}
 
-            {/* Content & Layout Tab */}
+            {/* Content Tab */}
             {activeTab === 'content' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                {/* Content Sub-tabs */}
+                <div style={{
+                  display: 'flex',
+                  borderBottom: '1px solid #e2e8f0',
+                  marginBottom: '16px',
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                  borderRadius: '8px 8px 0 0'
+                }}>
+                  {[
+                    { key: 'summary', label: 'Executive Summary' },
+                    { key: 'charts', label: 'Charts' },
+                    { key: 'layout', label: 'Layout' }
+                  ].map((subTab) => (
+                    <button
+                      key={subTab.key}
+                      onClick={() => setContentSubTab(subTab.key as any)}
+                      style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: contentSubTab === subTab.key ? '#3b82f6' : '#6b7280',
+                        borderBottom: contentSubTab === subTab.key ? '2px solid #3b82f6' : '2px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (contentSubTab !== subTab.key) {
+                          e.currentTarget.style.color = '#374151';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (contentSubTab !== subTab.key) {
+                          e.currentTarget.style.color = '#6b7280';
+                        }
+                      }}
+                    >
+                      {subTab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Executive Summary Sub-tab Content */}
+                {contentSubTab === 'summary' && (
+                  <div style={cardContainerStyle}>
+                    <div style={cardTitleStyle}>Executive Summary (Coming Soon)</div>
+                    <div style={{
+                      padding: '20px',
+                      textAlign: 'center',
+                      color: '#6b7280',
+                      background: '#f8fafc',
+                      borderRadius: '8px',
+                      border: '1px dashed #d1d5db'
+                    }}>
+                      <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: 500 }}>
+                        AI-Powered Executive Summary
+                      </div>
+                      <div style={{ fontSize: '12px', lineHeight: 1.5 }}>
+                        This feature will automatically generate executive summaries based on your selected charts and data insights using AI.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Charts Sub-tab Content */}
+                {contentSubTab === 'charts' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {/* Chart Selection & AI Content */}
                 <div style={cardContainerStyle}>
                   <div style={{
@@ -1393,9 +1575,13 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 </div>
               </div>
 
-              {/* Layout Options */}
-              <div style={cardContainerStyle}>
-                <div style={cardTitleStyle}>Layout Options</div>
+                  </div>
+                )}
+
+                {/* Layout Sub-tab Content */}
+                {contentSubTab === 'layout' && (
+                  <div style={cardContainerStyle}>
+                    <div style={cardTitleStyle}>Page Layout Options</div>
 
                 <label style={{...fieldLabelStyle, marginTop: '0px'}} htmlFor="page-size-select">
                   Page Size
@@ -1414,8 +1600,9 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                   <option value="A4">A4</option>
                   <option value="Letter">Letter</option>
                 </select>
+                  </div>
+                )}
               </div>
-            </div>
             )}
 
             {/* Branding Tab */}
