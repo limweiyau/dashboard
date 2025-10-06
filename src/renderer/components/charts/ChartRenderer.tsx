@@ -2106,11 +2106,13 @@ function renderScatterPlot(
         const statsColor = correlation > 0 ? '#10b981' : '#ef4444';
 
         // Position stats with offsets (default: top-right corner)
-        // Don't scale user offsets - they're relative positioning adjustments
+        // Use percentage-based base positioning for consistency across different chart sizes
+        const baseOffsetX = width * 0.02; // 2% from right edge
+        const baseOffsetY = height * 0.02; // 2% from top edge
         const offsetX = config.trendLineStatsOffsetX || 0;
         const offsetY = config.trendLineStatsOffsetY || 0;
-        const statsX = width - 10 + offsetX;
-        const statsY = 10 + offsetY;
+        const statsX = width - baseOffsetX + offsetX;
+        const statsY = baseOffsetY + offsetY;
 
         const statsGroup = g.append('g')
           .attr('class', `trend-stats-${seriesIndex}`)

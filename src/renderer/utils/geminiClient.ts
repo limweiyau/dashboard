@@ -233,72 +233,74 @@ CRITICAL REQUIREMENTS:
     const chartsWithInsights = detailedChartData.filter(chart => chart.hasInsights).length;
 
     const prompt = `
-LOGGING MODE: Please expose and list ALL data you received for verification purposes.
+You are an executive business analyst synthesizing insights from multiple data visualizations into a strategic summary.
 
-PROJECT METADATA:
-- Project Name: ${projectName}
-- Report Date: ${reportDate}
-- Report Title: ${config.reportTitle || 'N/A'}
-- Report Description: ${config.description || 'N/A'}
+PROJECT CONTEXT:
+- Report: ${config.reportTitle || 'Data Analysis Report'}
+- Date: ${reportDate}
+- Scope: ${config.description || 'Comprehensive data analysis'}
+- Coverage: ${totalCharts} chart${totalCharts !== 1 ? 's' : ''} analyzing ${totalDataPoints} data points across ${uniqueTableNames.join(', ')}
 
-AGGREGATE STATISTICS:
-- Total Charts: ${totalCharts}
-- Total Data Points: ${totalDataPoints}
-- Unique Chart Types: ${chartTypes.join(', ')}
-- Unique Table Names: ${uniqueTableNames.join(', ')}
-- Charts with Analysis: ${chartsWithAnalysis}
-- Charts with Insights: ${chartsWithInsights}
-
-DETAILED CHART DATA:
+DETAILED CHART INSIGHTS:
 ${detailedChartData.map(chart => `
-CHART ${chart.chartIndex}:
-- ID: ${chart.id}
-- Title: ${chart.title}
-- Type: ${chart.type}
-- X-Axis Field: ${chart.xAxisField}
-- Y-Axis Field: ${chart.yAxisField}
-- Aggregation: ${chart.aggregation}
-- Color Scheme: ${chart.colorScheme}
-- Show Legend: ${chart.showLegend}
-- Show Grid: ${chart.showGrid}
-- Animation: ${chart.animation}
-- Table Name: ${chart.tableName}
-- Table Description: ${chart.tableDescription}
-- Date Range: ${chart.dateRange}
-- Filters: ${JSON.stringify(chart.filters)}
-- Slicers: ${JSON.stringify(chart.slicers)}
-- Data Labels: [${chart.dataLabels.slice(0, 15).join(', ')}${chart.dataLabels.length > 15 ? '...' : ''}] (${chart.dataLabels.length} total)
-- Datasets: ${chart.datasets.map(ds => `"${ds.label}" (${ds.dataLength} points)`).join(', ')}
-- Total Data Points: ${chart.totalDataPoints}
-- Has Analysis: ${chart.hasAnalysis}
-- Analysis Content: ${chart.analysis}
-- Has Insights: ${chart.hasInsights}
-- Insights Content: ${chart.insights}
-- Full Raw Chart Object:
-${chart.rawChartObject}
+"${chart.title}" (${chart.type})
+${chart.analysis ? `Analysis: ${chart.analysis}` : ''}
+${chart.insights ? `Insights: ${chart.insights}` : ''}
 `).join('\n')}
 
-CONFIG OBJECT:
-${JSON.stringify(config, null, 2)}
+TASK: Write an executive summary that synthesizes these chart analyses into a cohesive strategic narrative.
 
-PROJECT DATA OBJECT:
-${JSON.stringify(projectData, null, 2)}
+REQUIREMENTS:
+- Maximum 1500 characters (strict limit)
+- Structure: Opening context → Key cross-chart findings → Strategic implications → Actionable recommendations
+- Connect insights across multiple charts to reveal larger patterns and trends
+- Reference specific metrics, percentages, and data points from the analyses
+- Use decisive, confident language appropriate for C-suite executives
+- Focus on business impact and strategic decisions, not technical details
+- Identify correlations, contradictions, or complementary findings across charts
 
-TASK: Please list and expose ALL the data you received above in a structured format for verification. Do NOT generate an executive summary yet - just show me what data is available.
+CRITICAL: The summary must integrate ALL chart analyses provided above, not just describe individual charts in isolation. Synthesize the data story.
 `;
 
-    // Console log the input data for debugging
-    console.log('=== EXECUTIVE SUMMARY INPUT DATA ===');
-    console.log('Charts array:', charts);
-    console.log('Charts length:', charts.length);
-    console.log('Project data:', projectData);
-    console.log('Config object:', config);
-    console.log('Detailed chart data:', detailedChartData);
-    console.log('Prompt length:', prompt.length);
-    console.log('Full prompt:', prompt);
-    console.log('=== END INPUT DATA ===');
-
     return await this.generateContent(prompt, modelName);
+  }
+
+  async debugExecutiveSummaryFeed(charts: any[], projectData: any, config: any): Promise<string> {
+    const detailedChartData = charts.map((chart, index) => {
+      const chartConfig = chart.config || chart.configuration || {};
+      const chartData = chart.data || {};
+      return {
+        chartIndex: index + 1,
+        id: chart.id,
+        title: chartConfig.title || chart.title || chart.name,
+        type: chartConfig.templateId || chart.type,
+        xAxisField: chartConfig.xAxisField,
+        yAxisField: chartConfig.yAxisField,
+        analysis: chart.analysis,
+        insights: chart.insights,
+        datasets: chartData.datasets,
+        labels: chartData.labels,
+        fullChart: chart
+      };
+    });
+
+    const feedData = {
+      projectMetadata: {
+        projectName: projectData?.name || config.reportTitle,
+        reportDate: config.reportDate,
+        reportTitle: config.reportTitle,
+        description: config.description
+      },
+      charts: detailedChartData,
+      projectData,
+      config
+    };
+
+    console.log('=== DEBUG FEED DATA ===');
+    console.log(JSON.stringify(feedData, null, 2));
+    console.log('=== END DEBUG FEED ===');
+
+    return JSON.stringify(feedData, null, 2);
   }
 
   async suggestChartTypes(data: any[], columns: any[], modelName: string = 'gemini-2.5-flash'): Promise<string[]> {

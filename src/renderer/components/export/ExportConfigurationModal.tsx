@@ -1258,59 +1258,6 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 }}
               />
 
-              {/* Content Inclusion Options */}
-              <div style={{ marginTop: '20px' }}>
-                <label style={fieldLabelStyle}>Content Inclusion</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '13px',
-                    cursor: 'pointer'
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={config.includeCharts}
-                      onChange={handleInputChange('includeCharts')}
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        accentColor: '#3b82f6'
-                      }}
-                    />
-                    Include Charts in Report
-                  </label>
-
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '13px',
-                    cursor: analysisAvailableCount > 0 ? 'pointer' : 'not-allowed',
-                    opacity: analysisAvailableCount > 0 ? 1 : 0.6
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={config.includeAnalysis}
-                      onChange={handleInputChange('includeAnalysis')}
-                      disabled={analysisAvailableCount === 0}
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        accentColor: '#3b82f6'
-                      }}
-                    />
-                    Include AI Analysis
-                    {analysisAvailableCount === 0 && (
-                      <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>
-                        (No AI content available)
-                      </span>
-                    )}
-                  </label>
-                </div>
-              </div>
-
                   </div>
                 )}
 
@@ -1502,8 +1449,21 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                   }
 
                                   client.setApiKey(apiKey);
+                                  // Merge analysis/insights data into charts
+                                  const chartsWithAnalysis = selectedCharts.map(chart => {
+                                    const analysisText = analysisContentByChart[chart.id] || '';
+                                    const parts = analysisText.split('INSIGHTS:');
+                                    const analysis = parts[0]?.replace('ANALYSIS:', '').trim() || '';
+                                    const insights = parts[1]?.trim() || '';
+                                    return {
+                                      ...chart,
+                                      analysis: analysis || undefined,
+                                      insights: insights || undefined
+                                    };
+                                  });
+
                                   const summary = await client.generateExecutiveSummary(
-                                    selectedCharts,
+                                    chartsWithAnalysis,
                                     { name: config.reportTitle },
                                     config
                                   );
@@ -1519,33 +1479,32 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                               style={{
                                 padding: '8px 16px',
                                 border: 'none',
-                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                background: isGeneratingExecutiveSummary
+                                  ? '#9ca3af'
+                                  : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                                 color: '#ffffff',
                                 borderRadius: '6px',
                                 fontSize: '12px',
                                 fontWeight: 500,
-                                cursor: 'pointer',
+                                cursor: isGeneratingExecutiveSummary ? 'not-allowed' : 'pointer',
+                                opacity: isGeneratingExecutiveSummary ? 0.6 : 1,
                                 transition: 'all 0.2s ease'
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+                                if (!isGeneratingExecutiveSummary) {
+                                  e.currentTarget.style.transform = 'translateY(-1px)';
+                                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+                                }
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = 'none';
+                                if (!isGeneratingExecutiveSummary) {
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow = 'none';
+                                }
                               }}
                             >
                               {isGeneratingExecutiveSummary ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <div style={{
-                                    width: '12px',
-                                    height: '12px',
-                                    border: '2px solid #ffffff40',
-                                    borderTop: '2px solid #ffffff',
-                                    borderRadius: '50%',
-                                    animation: 'spin 1s linear infinite'
-                                  }} />
                                   Generating...
                                 </div>
                               ) : (
