@@ -82,20 +82,33 @@ const chartsPerPage = 1;
 // A4 aspect ratio: 210mm x 297mm = 0.707:1
 const pageDimensions = { width: 780, height: 1103 }; // Maintains proper A4 ratio, expanded by 56%
 
-// Calculate dynamic preview dimensions based on available space
+// Calculate dynamic preview dimensions based on available space with zoom awareness
 const getPreviewDimensions = () => {
-  const containerWidth = Math.min(window.innerWidth * 0.52, 1100); // Available preview area width (increased)
-  const containerHeight = Math.min(window.innerHeight * 0.8, 900); // Available preview area height (increased)
+  // Detect zoom level
+  const devicePixelRatio = window.devicePixelRatio || 1;
 
-  // Calculate scale to fit both width and height, but less aggressive scaling
+  // Apply zoom adjustment to container calculations
+  const zoomAdjustment = devicePixelRatio > 1 ? Math.pow(0.85, devicePixelRatio - 1) : 1;
+
+  const containerWidth = Math.min(window.innerWidth * 0.52, 1100) * zoomAdjustment;
+  const containerHeight = Math.min(window.innerHeight * 0.8, 900) * zoomAdjustment;
+
+  // Calculate scale to fit both width and height
   const scaleX = containerWidth / pageDimensions.width;
   const scaleY = containerHeight / pageDimensions.height;
-  const scale = Math.min(scaleX, scaleY, 1.0); // Allow scaling up to 100%, less aggressive scaling down
+  const baseScale = Math.min(scaleX, scaleY, 1.0);
+
+  // Apply additional zoom-based scaling for preview
+  const finalScale = baseScale * zoomAdjustment;
+
+  // Smooth minimum scale transition - no sudden jumps
+  const minScale = Math.max(0.6, 0.8 - (devicePixelRatio - 1) * 0.4);
+  const actualScale = Math.max(finalScale, minScale);
 
   return {
-    width: pageDimensions.width * Math.max(scale, 0.8), // Minimum 80% scale (increased from 70%)
-    height: pageDimensions.height * Math.max(scale, 0.8),
-    scale: Math.max(scale, 0.8)
+    width: pageDimensions.width * actualScale,
+    height: pageDimensions.height * actualScale,
+    scale: actualScale
   };
 };
 
@@ -506,7 +519,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '4px',
-                          fontSize: '10px',
+                          fontSize: '12px',
                           color: '#1e3a8a',
                           lineHeight: 1.5
                         }}>
@@ -542,7 +555,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '4px',
-                          fontSize: '10px',
+                          fontSize: '12px',
                           color: '#166534',
                           lineHeight: 1.5
                         }}>
@@ -677,16 +690,28 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                       style={{
                         width: previewDimensions.width,
                         height: previewDimensions.height,
-                        background: '#ffffff',
-                        borderRadius: '14px',
-                        boxShadow: '0 14px 32px rgba(15, 23, 42, 0.12)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden',
                         flexShrink: 0,
-                        position: 'relative'
+                        position: 'relative',
+                        overflow: 'visible'
                       }}
                     >
+                      <div
+                        style={{
+                          width: pageDimensions.width,
+                          height: pageDimensions.height,
+                          background: '#ffffff',
+                          borderRadius: '14px',
+                          boxShadow: '0 14px 32px rgba(15, 23, 42, 0.12)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflow: 'hidden',
+                          transform: `scale(${previewDimensions.scale})`,
+                          transformOrigin: 'top left',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0
+                        }}
+                      >
                       {/* Professional Header */}
                       <div style={{
                         padding: '16px 24px',
@@ -786,6 +811,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                         <div style={{ fontWeight: 500 }}>
                           Page {index + 1} of {totalPages}
                         </div>
+                      </div>
                       </div>
                     </div>
                   ))}
