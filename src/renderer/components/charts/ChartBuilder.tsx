@@ -184,10 +184,10 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
   const FOOTER_HEIGHT = 82;
   const PANEL_PADDING_ALLOWANCE = 24; // additional breathing room
 
-  // Base values (at 100% zoom) - reduced for shorter containers
-  const BASE_PANEL_MIN_HEIGHT = 400;
-  const BASE_PANEL_MAX_HEIGHT = 800;
-  const BASE_MIN_VH = 35;
+  // Base values (at 100% zoom) - increased for taller containers
+  const BASE_PANEL_MIN_HEIGHT = 600;
+  const BASE_PANEL_MAX_HEIGHT = 1200;
+  const BASE_MIN_VH = 70;
 
   // Apply zoom scaling
   const PANEL_MIN_HEIGHT = Math.round(BASE_PANEL_MIN_HEIGHT * zoomScale);
@@ -3282,8 +3282,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                   </label>
                                   <input
                                     type="range"
-                                    min="-100"
-                                    max="100"
+                                    min="-200"
+                                    max="200"
                                     value={chartConfig.trendLineStatsOffsetX || 0}
                                     onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineStatsOffsetX: Number(e.target.value) }))}
                                     style={{ width: '100%' }}
@@ -3300,8 +3300,8 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                                   </label>
                                   <input
                                     type="range"
-                                    min="-100"
-                                    max="100"
+                                    min="-200"
+                                    max="200"
                                     value={chartConfig.trendLineStatsOffsetY || 0}
                                     onChange={(e) => setChartConfig(prev => ({ ...prev, trendLineStatsOffsetY: Number(e.target.value) }))}
                                     style={{ width: '100%' }}
