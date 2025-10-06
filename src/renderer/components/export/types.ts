@@ -4,6 +4,12 @@ export type ExportOrientation = 'portrait' | 'landscape';
 export type ExportPageSize = 'A4' | 'Letter';
 export type ConfidentialStatus = 'Public' | 'Internal' | 'Confidential' | 'Restricted';
 
+export interface ExecutiveHighlight {
+  metric: string;      // The big number/percentage (e.g., "42%", "$2.5M", "3x")
+  label: string;       // Short description (e.g., "Revenue Growth", "Cost Savings")
+  trend?: 'up' | 'down' | 'neutral';  // Optional trend indicator
+}
+
 export interface ExportReportConfig {
   reportTitle: string;
   description: string;
@@ -15,6 +21,7 @@ export interface ExportReportConfig {
   analysisSummary: string;
   includeExecutiveSummary: boolean;
   executiveSummaryContent: string;
+  executiveHighlights: ExecutiveHighlight[];
   orientation: ExportOrientation;
   pageSize: ExportPageSize;
   companyName: string;

@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useMemo, useState } from 'react';
+import React, { ChangeEvent, useMemo, useState, useRef, useEffect } from 'react';
 import { Chart, Settings } from '../../types';
 import { ExportReportConfig, ConfidentialStatus } from './types';
 import { parseAnalysisContent } from '../../utils/analysisParser';
@@ -170,47 +170,83 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isGeneratingExecutiveSummary, setIsGeneratingExecutiveSummary] = useState(false);
 
+  // Note: Executive summary persistence is now handled by the parent component (SimpleDashboard)
+  // The summary will persist across modal opens/closes via localStorage
+
   // Rich text editor functions
   const MAX_EXECUTIVE_SUMMARY_CHARS = 1500;
+  const editorRef = useRef<HTMLDivElement>(null);
+  const isInitialLoadRef = useRef(true);
 
-  const handleRichTextInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const editor = e.currentTarget;
+  // Initialize editor content on mount or when content/subtab changes from external source
+  useEffect(() => {
+    if (!editorRef.current || contentSubTab !== 'summary') return;
 
-    // Save cursor position before any changes
-    const selection = window.getSelection();
-    let cursorPosition = 0;
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const preCaretRange = range.cloneRange();
-      preCaretRange.selectNodeContents(editor);
-      preCaretRange.setEnd(range.endContainer, range.endOffset);
-      cursorPosition = preCaretRange.toString().length;
+    // Clear editor if content is empty
+    if (config.executiveSummaryContent === '') {
+      editorRef.current.innerHTML = '';
+      isInitialLoadRef.current = true;
+      return;
     }
 
-    // Get text content including newlines and spaces
-    const textContent = editor.innerText || '';
+    // On initial load or when AI generates new content, render markdown to HTML
+    if (isInitialLoadRef.current || config.executiveSummaryContent.includes('**')) {
+      const rendered = renderMarkdownForEditor(config.executiveSummaryContent);
+      editorRef.current.innerHTML = rendered;
+      isInitialLoadRef.current = false;
+    }
+  }, [config.executiveSummaryContent, contentSubTab]);
 
-    // Temporarily disable character limit for logging mode
-    onConfigChange({ executiveSummaryContent: textContent });
+  const handleEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const newText = e.currentTarget.innerText || '';
+
+    // Calculate effective length (newlines count as 100 chars)
+    const effectiveLength = newText.split('').reduce((count, char) => {
+      return count + (char === '\n' ? 100 : 1);
+    }, 0);
+
+    // If over limit, revert to previous content
+    if (effectiveLength > 3500) {
+      return;
+    }
+
+    // Store plain text for character counting, but preserve HTML in editor
+    onConfigChange({ executiveSummaryContent: newText });
   };
 
-  const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Temporarily disable all limits for logging mode - only handle shortcuts
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Handle formatting shortcuts
     if (e.ctrlKey || e.metaKey) {
       switch (e.key.toLowerCase()) {
         case 'b':
           e.preventDefault();
           document.execCommand('bold');
-          break;
+          return;
         case 'i':
           e.preventDefault();
           document.execCommand('italic');
-          break;
-        case 'u':
-          e.preventDefault();
-          document.execCommand('underline');
-          break;
+          return;
       }
+    }
+
+    // Calculate current effective length
+    const currentText = editorRef.current?.innerText || '';
+    const effectiveLength = currentText.split('').reduce((count, char) => {
+      return count + (char === '\n' ? 100 : 1);
+    }, 0);
+
+    // Allow backspace, delete, and navigation keys even if at limit
+    const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+
+    // Block input if at or over limit (except for allowed keys)
+    if (effectiveLength >= 3500 && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
     }
   };
 
@@ -245,24 +281,29 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
   const renderMarkdown = (text: string) => {
     if (!text) return '';
 
-    let html = text
-      // Headers
-      .replace(/^### (.*$)/gim, '<h3 style="font-size: 18px; font-weight: 600; margin: 16px 0 8px 0; color: #1f2937;">$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2 style="font-size: 20px; font-weight: 600; margin: 20px 0 10px 0; color: #1f2937;">$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1 style="font-size: 24px; font-weight: 700; margin: 24px 0 12px 0; color: #111827;">$1</h1>')
-      // Bold and Italic
+    let html = text;
+
+    // Process bold text FIRST (before any other replacements)
+    html = html
       .replace(/\*\*\*(.*?)\*\*\*/g, '<strong style="font-weight: 700;"><em>$1</em></strong>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      // Inline code
+      .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 700; color: #0f172a;">$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // Then process headers (they may now contain <strong> tags)
+    html = html
+      .replace(/^### (.*$)/gim, '<h3 style="font-size: 15px; font-weight: 700; margin: 18px 0 10px 0; color: #0f172a; padding-bottom: 6px; border-bottom: 1.5px solid #e5e7eb;">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 style="font-size: 16px; font-weight: 700; margin: 20px 0 12px 0; color: #0f172a; padding-bottom: 7px; border-bottom: 2px solid #e5e7eb;">$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1 style="font-size: 18px; font-weight: 700; margin: 0 0 14px 0; color: #111827; padding-bottom: 8px; border-bottom: 2px solid #cbd5e1;">$1</h1>');
+
+    // Other markdown elements
+    html = html
       .replace(/`(.*?)`/g, '<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-family: Monaco, monospace; font-size: 12px;">$1</code>')
-      // Quotes
       .replace(/^> (.*$)/gim, '<blockquote style="margin: 12px 0; padding: 8px 16px; border-left: 4px solid #e5e7eb; background-color: #f9fafb; font-style: italic;">$1</blockquote>')
-      // Lists - handle bullet points
-      .replace(/^- (.*$)/gim, '<li style="margin: 4px 0; list-style-type: disc;">$1</li>')
-      // Lists - handle numbered lists
-      .replace(/^\d+\. (.*$)/gim, '<li style="margin: 4px 0; list-style-type: decimal;">$1</li>')
-      // Line breaks
+      .replace(/^• (.*$)/gim, '<li style="margin: 3px 0; list-style-type: disc; margin-left: 20px;">$1</li>')
+      .replace(/^- (.*$)/gim, '<li style="margin: 3px 0; list-style-type: disc; margin-left: 20px;">$1</li>')
+      .replace(/^\d+\. (.*$)/gim, '<li style="margin: 3px 0; list-style-type: decimal; margin-left: 20px;">$1</li>')
+      // Line breaks - double newlines create more space
+      .replace(/\n\n/g, '<div style="height: 14px;"></div>')
       .replace(/\n/g, '<br/>');
 
     // Wrap consecutive list items in ul/ol tags
@@ -364,13 +405,10 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
         const chartNames = page.charts
           .map(chart => chart.name || `Chart ${page.startIndex + 1}`)
           .join(', ');
-        const chartTypes = page.charts
-          .map(chart => (chart.type ? chart.type.toUpperCase() : 'CHART'))
-          .join(' • ');
 
         entries.push({
           title: chartNames,
-          subtitle: chartTypes,
+          subtitle: undefined,
           pageNumber: pageCounter + idx
         });
       });
@@ -493,29 +531,31 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {page.entries.map((entry, idx) => (
                 <div
                   key={`${entry.title}-${idx}`}
                   style={{
                     display: 'flex',
-                    alignItems: 'baseline',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '16px 22px',
-                    borderRadius: '14px',
-                    background: idx % 2 === 0 ? 'rgba(148, 163, 184, 0.12)' : 'rgba(59, 130, 246, 0.08)',
-                    border: '1px solid rgba(148, 163, 184, 0.25)'
+                    padding: '14px 20px',
+                    borderRadius: '10px',
+                    background: idx % 2 === 0 ? 'rgba(148, 163, 184, 0.1)' : 'rgba(59, 130, 246, 0.06)',
+                    border: '1px solid rgba(148, 163, 184, 0.2)'
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', letterSpacing: '0.08em' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', letterSpacing: '0.06em' }}>
                       {String(idx + 1).padStart(2, '0')} • {entry.title}
                     </div>
                     {entry.subtitle && (
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>{entry.subtitle}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+                        ({entry.subtitle})
+                      </div>
                     )}
                   </div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: primaryColor }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: primaryColor, marginLeft: '16px' }}>
                     {entry.pageNumber ?? '—'}
                   </div>
                 </div>
@@ -555,44 +595,74 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
               </div>
             </div>
 
-            {/* Statistics Section */}
-            <div style={{
-              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-              borderRadius: '12px',
-              padding: '24px',
-              marginBottom: '32px',
-              border: '1px solid #e2e8f0'
-            }}>
-              <div style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a', marginBottom: '16px' }}>
-                Analysis Statistics
+            {/* Key Highlights Section */}
+            {config.executiveHighlights && config.executiveHighlights.length > 0 && config.executiveHighlights.some(h => h.metric && h.label) && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '20px',
+                marginBottom: '32px'
+              }}>
+                {config.executiveHighlights.filter(h => h.metric && h.label).map((highlight, idx) => {
+                  // Different color scheme for each metric card - glassy/translucent style
+                  const colorSchemes = [
+                    {
+                      bgColor: 'rgba(59, 130, 246, 0.08)',
+                      borderColor: 'rgba(59, 130, 246, 0.3)',
+                      metricColor: '#2563eb'
+                    },
+                    {
+                      bgColor: 'rgba(168, 85, 247, 0.08)',
+                      borderColor: 'rgba(168, 85, 247, 0.3)',
+                      metricColor: '#9333ea'
+                    },
+                    {
+                      bgColor: 'rgba(245, 158, 11, 0.08)',
+                      borderColor: 'rgba(245, 158, 11, 0.3)',
+                      metricColor: '#d97706'
+                    }
+                  ];
+
+                  const colors = colorSchemes[idx % 3];
+
+                  return (
+                    <div key={idx} style={{
+                      background: colors.bgColor,
+                      borderRadius: '12px',
+                      padding: '20px 16px',
+                      border: `1.5px solid ${colors.borderColor}`,
+                      textAlign: 'center'
+                    }}>
+                      <div style={{
+                        fontSize: '32px',
+                        fontWeight: 800,
+                        color: colors.metricColor,
+                        lineHeight: '32px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        marginBottom: '6px'
+                      }}>
+                        {highlight.metric}
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        lineHeight: '12px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {highlight.label}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 700, color: primaryColor }}>
-                    {totalCharts}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    Charts Analyzed
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 700, color: primaryColor }}>
-                    {totalDataPoints.toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    Data Points
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 700, color: primaryColor }}>
-                    {chartTypes.length}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    Chart Types
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Executive Summary Content */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -1435,6 +1505,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                             <button
                               disabled={isGeneratingExecutiveSummary}
                               onClick={async () => {
+                                // Clear existing content before starting
+                                onConfigChange({
+                                  executiveSummaryContent: '',
+                                  executiveHighlights: []
+                                });
+
                                 setIsGeneratingExecutiveSummary(true);
                                 try {
                                   const { GeminiClient } = await import('../../utils/geminiClient');
@@ -1462,13 +1538,15 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                     };
                                   });
 
-                                  const summary = await client.generateExecutiveSummary(
+                                  const result = await client.generateExecutiveSummary(
                                     chartsWithAnalysis,
                                     { name: config.reportTitle },
                                     config
                                   );
-                                  // Don't enforce character limit for logging mode - let full data through
-                                  onConfigChange({ executiveSummaryContent: summary });
+                                  onConfigChange({
+                                    executiveSummaryContent: result.summary,
+                                    executiveHighlights: result.highlights
+                                  });
                                 } catch (error) {
                                   console.error('Failed to generate executive summary:', error);
                                   alert('Failed to generate executive summary. Please check your API key and try again.');
@@ -1514,7 +1592,10 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
 
                             {config.executiveSummaryContent && (
                               <button
-                                onClick={() => onConfigChange({ executiveSummaryContent: '' })}
+                                onClick={() => onConfigChange({
+                                  executiveSummaryContent: '',
+                                  executiveHighlights: []
+                                })}
                                 style={{
                                   padding: '8px 16px',
                                   border: '1px solid #d1d5db',
@@ -1588,18 +1669,11 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                             </div>
                           ) : (
                             <div
-                              ref={(el) => {
-                                if (el) {
-                                  window.executiveSummaryEditor = el;
-                                }
-                              }}
+                              ref={editorRef}
                               contentEditable
-                              suppressContentEditableWarning={true}
-                              onInput={handleRichTextInput}
-                              onKeyDown={handleRichTextKeyDown}
-                              dangerouslySetInnerHTML={{
-                                __html: renderMarkdownForEditor(config.executiveSummaryContent)
-                              }}
+                              suppressContentEditableWarning
+                              onInput={handleEditorInput}
+                              onKeyDown={handleEditorKeyDown}
                               style={{
                                 ...textareaStyle,
                                 minHeight: '200px',
@@ -1611,7 +1685,7 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                 wordWrap: 'break-word',
                                 overflow: 'auto'
                               }}
-                              placeholder="Enter executive summary content or use AI generation..."
+                              data-placeholder="Enter executive summary content or use AI generation..."
                             />
                           )}
                           <div style={{
@@ -1622,14 +1696,29 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                             justifyContent: 'space-between'
                           }}>
                             <span style={{
-                              color: config.executiveSummaryContent.length > MAX_EXECUTIVE_SUMMARY_CHARS * 0.9
-                                ? '#ef4444'
-                                : config.executiveSummaryContent.length > MAX_EXECUTIVE_SUMMARY_CHARS * 0.8
-                                  ? '#f59e0b'
-                                  : '#6b7280'
+                              color: (() => {
+                                const effectiveLength = (config.executiveSummaryContent || '').split('').reduce((count, char) => {
+                                  return count + (char === '\n' ? 100 : 1);
+                                }, 0);
+                                return effectiveLength > 3500 * 0.9
+                                  ? '#ef4444'
+                                  : effectiveLength > 3500 * 0.8
+                                    ? '#f59e0b'
+                                    : '#6b7280';
+                              })()
                             }}>
-                              {config.executiveSummaryContent.length} / {MAX_EXECUTIVE_SUMMARY_CHARS} characters
-                              {config.executiveSummaryContent.length >= MAX_EXECUTIVE_SUMMARY_CHARS && ' (limit reached)'}
+                              {(() => {
+                                const effectiveLength = (config.executiveSummaryContent || '').split('').reduce((count, char) => {
+                                  return count + (char === '\n' ? 100 : 1);
+                                }, 0);
+                                return `${effectiveLength} / 3500 characters`;
+                              })()}
+                              {(() => {
+                                const effectiveLength = (config.executiveSummaryContent || '').split('').reduce((count, char) => {
+                                  return count + (char === '\n' ? 100 : 1);
+                                }, 0);
+                                return effectiveLength >= 3500 ? ' (limit reached)' : '';
+                              })()}
                             </span>
                           </div>
                         </div>

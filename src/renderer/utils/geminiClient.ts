@@ -172,7 +172,7 @@ CRITICAL REQUIREMENTS:
     return await this.generateContent(prompt, modelName);
   }
 
-  async generateExecutiveSummary(charts: any[], projectData: any, config: any, modelName: string = 'gemini-2.5-flash'): Promise<string> {
+  async generateExecutiveSummary(charts: any[], projectData: any, config: any, modelName: string = 'gemini-2.5-flash'): Promise<{ summary: string; highlights: Array<{ metric: string; label: string; trend?: 'up' | 'down' | 'neutral' }> }> {
     if (!this.genAI) {
       throw new Error('API key not set');
     }
@@ -233,7 +233,7 @@ CRITICAL REQUIREMENTS:
     const chartsWithInsights = detailedChartData.filter(chart => chart.hasInsights).length;
 
     const prompt = `
-You are an executive business analyst synthesizing insights from multiple data visualizations into a strategic summary.
+You are an executive business analyst creating a report summary with key highlights.
 
 PROJECT CONTEXT:
 - Report: ${config.reportTitle || 'Data Analysis Report'}
@@ -248,21 +248,146 @@ ${chart.analysis ? `Analysis: ${chart.analysis}` : ''}
 ${chart.insights ? `Insights: ${chart.insights}` : ''}
 `).join('\n')}
 
-TASK: Write an executive summary that synthesizes these chart analyses into a cohesive strategic narrative.
+TASK: Generate TWO outputs in strict JSON format:
 
-REQUIREMENTS:
-- Maximum 1500 characters (strict limit)
-- Structure: Opening context → Key cross-chart findings → Strategic implications → Actionable recommendations
-- Connect insights across multiple charts to reveal larger patterns and trends
-- Reference specific metrics, percentages, and data points from the analyses
-- Use decisive, confident language appropriate for C-suite executives
-- Focus on business impact and strategic decisions, not technical details
-- Identify correlations, contradictions, or complementary findings across charts
+1. HIGHLIGHTS: Exactly 3 visual metric cards showing the most critical numbers
+   Each highlight has two parts:
+   - METRIC: Pure number/percentage/value ONLY - NO WORDS
+     * Maximum 8 characters (must fit on one line)
+     * Must be a concrete number from the data
+     * Examples: "42%", "$2.5M", "3.2x", "18.3K", "13.75" - NEVER "13.75 days"
+     * If the data is "13.75 days", the metric should be just "13.75"
+   - LABEL: Brief description of what the metric represents
+     * Maximum 20 characters (must fit on one line)
+     * 2-3 words maximum
+     * This is where you explain the unit (e.g., "Avg Days", "Leave Days", "Revenue Growth")
+   - TREND (optional): "up" for positive, "down" for negative, "neutral" for stable
 
-CRITICAL: The summary must integrate ALL chart analyses provided above, not just describe individual charts in isolation. Synthesize the data story.
+   Examples of good highlights:
+   * { "metric": "42%", "label": "Revenue Growth", "trend": "up" }
+   * { "metric": "$2.5M", "label": "Cost Savings", "trend": "up" }
+   * { "metric": "18,305", "label": "New Customers", "trend": "up" }
+   * { "metric": "13.75", "label": "Average Leave Days", "trend": "neutral" }
+
+   BAD examples (NEVER do this):
+   * { "metric": "13.75 days", ... } ❌ NO WORDS IN METRIC
+   * { "metric": "42% growth", ... } ❌ NO WORDS IN METRIC
+
+2. SUMMARY: Executive narrative synthesizing all insights
+   - Target length: 3000-3500 actual characters (aim for comprehensive, detailed analysis)
+   - IMPORTANT: Each newline character counts as 100 characters toward the UI limit (but write normally)
+   - Write substantial, detailed content - aim for the full 3000-3500 character range
+   - MUST use this exact structure with headers and spacing:
+
+   **Overview**
+
+   [3-5 sentences providing comprehensive context, scope, and background of the analysis]
+
+   **Key Findings**
+
+   [4-6 sentences with detailed discoveries, trends, and specific metrics from the data]
+
+   **Strategic Implications**
+
+   [3-5 sentences analyzing business impact, risks, opportunities, and what the findings mean strategically]
+
+   **Recommendations**
+
+   [3-5 sentences with specific, actionable next steps and strategic recommendations]
+
+   - Use **bold** for section headers (use markdown ** syntax)
+   - MUST have a blank line between header and content
+   - NO bullet points - use flowing paragraph text only
+   - Write detailed, thorough content - aim for substance and depth
+   - Reference specific metrics, data points, and trends throughout
+   - Use decisive, confident C-suite language
+   - Connect insights across multiple charts
+   - Be comprehensive - executives want detailed analysis, not bullet points
+
+OUTPUT FORMAT (return ONLY this JSON structure, no additional text):
+{
+  "highlights": [
+    { "metric": "42%", "label": "Revenue Growth", "trend": "up" },
+    { "metric": "$1.8M", "label": "Cost Reduction", "trend": "up" },
+    { "metric": "15K", "label": "New Customers", "trend": "up" }
+  ],
+  "summary": "**Overview**\\n\\nContext sentences here. More context.\\n\\n**Key Findings**\\n\\nFirst finding with metrics. Second finding with data.\\n\\n**Strategic Implications**\\n\\nImplications here. Business impact.\\n\\n**Recommendations**\\n\\nAction steps here. Next steps."
+}
+
+CRITICAL REQUIREMENTS:
+- Return ONLY valid JSON, no markdown code blocks, no additional commentary
+- Highlights array must contain exactly 3 objects with metric, label, and optional trend
+- Each metric must be 10 characters or less
+- Each label must be 25 characters or less (2-4 words)
+- Summary must be under 1400 characters INCLUDING all formatting (headers, bullets, newlines)
+- Summary MUST follow the exact 4-section structure: Overview, Key Findings, Strategic Implications, Recommendations
+- Use \\n for line breaks in the JSON string
+- The summary must integrate ALL chart analyses, not just describe individual charts in isolation
 `;
 
-    return await this.generateContent(prompt, modelName);
+    try {
+      const response = await this.generateContent(prompt, modelName);
+
+      // Extract JSON from response (handle potential markdown code blocks)
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('Failed to extract JSON from response:', response);
+        throw new Error('Invalid response format - no JSON found');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      // Validate and sanitize highlights
+      let highlights: Array<{ metric: string; label: string; trend?: 'up' | 'down' | 'neutral' }> = [];
+      if (Array.isArray(parsed.highlights) && parsed.highlights.length > 0) {
+        highlights = parsed.highlights
+          .slice(0, 3)
+          .map((h: any) => {
+            if (!h || typeof h !== 'object') return null;
+
+            const metric = String(h.metric || '').trim();
+            const label = String(h.label || '').trim();
+            const trend = ['up', 'down', 'neutral'].includes(h.trend) ? h.trend : undefined;
+
+            // Validate lengths
+            if (!metric || !label) return null;
+
+            return {
+              metric: metric.length > 8 ? metric.substring(0, 8) : metric,
+              label: label.length > 20 ? label.substring(0, 20) : label,
+              trend
+            };
+          })
+          .filter((h: any) => h !== null);
+      }
+
+      // Pad with empty highlights if we have fewer than 3
+      while (highlights.length < 3) {
+        highlights.push({ metric: '', label: '', trend: undefined });
+      }
+
+      // Validate and sanitize summary
+      let summary = String(parsed.summary || '').trim();
+      if (summary.length > 1400) {
+        // Try to truncate at last complete sentence within limit
+        const truncated = summary.substring(0, 1397);
+        const lastPeriod = truncated.lastIndexOf('.');
+        summary = lastPeriod > 1100 ? truncated.substring(0, lastPeriod + 1) : truncated + '...';
+      }
+
+      return { summary, highlights };
+    } catch (error) {
+      console.error('Failed to generate structured executive summary:', error);
+      // Fallback: return empty highlights and error message
+      return {
+        summary: 'Failed to generate executive summary. Please try again.',
+        highlights: [
+          { metric: '', label: '', trend: undefined },
+          { metric: '', label: '', trend: undefined },
+          { metric: '', label: '', trend: undefined }
+        ]
+      };
+    }
   }
 
   async debugExecutiveSummaryFeed(charts: any[], projectData: any, config: any): Promise<string> {

@@ -167,6 +167,36 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     }
   }, [brandingStorageKey]);
 
+  // Executive summary storage
+  const executiveSummaryStorageKey = useMemo(
+    () => (project?.id ? `executive-summary-${project.id}` : 'executive-summary-default'),
+    [project?.id]
+  );
+
+  const readStoredExecutiveSummary = useCallback((): { content: string; highlights: any[] } | null => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    try {
+      const raw = window.localStorage.getItem(executiveSummaryStorageKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      console.error('Failed to read executive summary from storage', error);
+      return null;
+    }
+  }, [executiveSummaryStorageKey]);
+
+  const persistExecutiveSummary = useCallback((content: string, highlights: any[]) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(executiveSummaryStorageKey, JSON.stringify({ content, highlights }));
+    } catch (error) {
+      console.error('Failed to persist executive summary', error);
+    }
+  }, [executiveSummaryStorageKey]);
+
   const [chartAnalyses, setChartAnalyses] = useState<ChartAnalysisMap>({});
   const [hasRestoredAnalyses, setHasRestoredAnalyses] = useState(false);
   const [editingTableName, setEditingTableName] = useState(false);
@@ -199,6 +229,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   }, [chartAnalyses]);
   const [exportConfig, setExportConfig] = useState<ExportReportConfig>(() => {
     const storedBranding = readStoredBranding();
+    const storedExecutiveSummary = readStoredExecutiveSummary();
 
     return {
       reportTitle: 'Title',
@@ -209,8 +240,9 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       includeAIAnalysis: true,
       includeAIInsights: true,
       analysisSummary: 'No chart analysis is available yet',
-      includeExecutiveSummary: false,
-      executiveSummaryContent: '',
+      includeExecutiveSummary: true,
+      executiveSummaryContent: storedExecutiveSummary?.content || '',
+      executiveHighlights: storedExecutiveSummary?.highlights || [],
       orientation: 'portrait',
       pageSize: 'A4',
       companyName: storedBranding?.companyName ?? 'Your Company',
@@ -1474,6 +1506,16 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           logoDataUrl: next.logoDataUrl ?? null,
           logoFileName: next.logoFileName ?? null
         });
+      }
+
+      if (
+        'executiveSummaryContent' in updates ||
+        'executiveHighlights' in updates
+      ) {
+        persistExecutiveSummary(
+          next.executiveSummaryContent,
+          next.executiveHighlights
+        );
       }
 
       return next;
