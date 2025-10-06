@@ -1665,28 +1665,16 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       for (let index = 0; index < previewNodes.length; index++) {
         const node = previewNodes[index];
 
-        // Get the element's position and dimensions on screen
-        const rect = node.getBoundingClientRect();
+        // Get the actual page dimensions from the node's style or offsetWidth/Height
+        // The preview has a transform scale, but we want the original unscaled dimensions
+        const actualWidth = node.offsetWidth;
+        const actualHeight = node.offsetHeight;
 
-        // Create a canvas and draw the element
-        const canvas = document.createElement('canvas');
-        const scale = 2; // 2x for better quality
-        canvas.width = rect.width * scale;
-        canvas.height = rect.height * scale;
+        // Use higher scale for better quality - 3x minimum
+        const deviceScale = window.devicePixelRatio || 1;
+        const scale = Math.max(3, deviceScale * 2);
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          throw new Error('Failed to get canvas context');
-        }
-
-        // Scale the context to match our scale
-        ctx.scale(scale, scale);
-
-        // Draw white background
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, rect.width, rect.height);
-
-        // Capture the preview element
+        // Capture the preview element with high quality settings
         const renderedCanvas = await html2canvas(node, {
           backgroundColor: '#ffffff',
           scale: scale,
@@ -1695,29 +1683,44 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           allowTaint: false,
           removeContainer: false,
           imageTimeout: 0,
-          width: rect.width,
-          height: rect.height,
+          width: actualWidth,
+          height: actualHeight,
+          foreignObjectRendering: false, // Disable foreign object rendering for better SVG support
           onclone: (clonedDoc) => {
-            // Ensure no filters or effects are applied
+            // Remove any visual effects that don't translate well to canvas
             const allElements = clonedDoc.querySelectorAll('*');
             allElements.forEach((el: any) => {
               if (el.style) {
-                el.style.filter = 'none';
-                el.style.backdropFilter = 'none';
-                el.style.opacity = el.style.opacity || '1';
+                // Remove CSS filters and effects
+                if (el.style.filter && el.style.filter !== 'none' && !el.style.filter.includes('drop-shadow')) {
+                  el.style.filter = 'none';
+                }
+                if (el.style.backdropFilter && el.style.backdropFilter !== 'none') {
+                  el.style.backdropFilter = 'none';
+                }
+                // Ensure full opacity unless explicitly set
+                if (!el.style.opacity || el.style.opacity === '0') {
+                  el.style.opacity = '1';
+                }
+                // Remove transforms that might cause issues
+                if (el.style.transform && el.style.transform.includes('scale')) {
+                  el.style.transform = 'none';
+                }
               }
             });
           }
         });
 
-        // Convert to JPEG with higher quality to reduce fogginess
-        const imageData = renderedCanvas.toDataURL('image/jpeg', 0.95);
+        // Convert to PNG for lossless quality
+        const imageData = renderedCanvas.toDataURL('image/png', 1.0);
 
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
-        const ratio = Math.min(pageWidth / renderedCanvas.width, pageHeight / renderedCanvas.height);
-        const renderWidth = renderedCanvas.width * ratio;
-        const renderHeight = renderedCanvas.height * ratio;
+
+        // Use the actual page dimensions for sizing
+        const ratio = Math.min(pageWidth / actualWidth, pageHeight / actualHeight);
+        const renderWidth = actualWidth * ratio;
+        const renderHeight = actualHeight * ratio;
         const offsetX = (pageWidth - renderWidth) / 2;
         const offsetY = (pageHeight - renderHeight) / 2;
 
@@ -1725,7 +1728,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           pdf.addPage(pdfOptions.format, pdfOptions.orientation);
         }
 
-        pdf.addImage(imageData, 'JPEG', offsetX, offsetY, renderWidth, renderHeight, undefined, 'FAST');
+        pdf.addImage(imageData, 'PNG', offsetX, offsetY, renderWidth, renderHeight, undefined, 'NONE');
       }
 
       const sanitizedTitle = (exportConfig.reportTitle || 'report')
