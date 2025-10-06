@@ -177,54 +177,126 @@ CRITICAL REQUIREMENTS:
       throw new Error('API key not set');
     }
 
-    // Aggregate data from all selected charts
-    const chartSummaries = charts.map(chart => {
-      const chartType = chart.configuration?.templateId || 'unknown';
-      const title = chart.configuration?.title || chart.title || 'Untitled Chart';
+    // Extract comprehensive chart data for logging
+    const detailedChartData = charts.map((chart, index) => {
+      // Try multiple possible locations for chart configuration
+      const chartConfig = chart.config || chart.configuration || {};
+      const chartData = chart.data || {};
+      const datasets = chartData.datasets || [];
+      const labels = chartData.labels || [];
 
-      // Extract basic chart info for context
       return {
-        title,
-        type: chartType,
-        dataPoints: chart.data?.datasets?.[0]?.data?.length || 0
+        chartIndex: index + 1,
+        id: chart.id || 'no-id',
+        title: chartConfig.title || chart.title || chart.name || `Chart ${index + 1}`,
+        type: chartConfig.templateId || chartConfig.type || chart.type || chartConfig.chartType || 'unknown',
+        xAxisField: chartConfig.xAxisField || chartConfig.categoryField || 'unknown',
+        yAxisField: chartConfig.yAxisField || chartConfig.valueField || 'unknown',
+        aggregation: chartConfig.aggregation || 'unknown',
+        colorScheme: chartConfig.colorScheme || 'unknown',
+        showLegend: chartConfig.showLegend,
+        showGrid: chartConfig.showGrid,
+        animation: chartConfig.animation,
+        dataLabels: labels,
+        datasets: datasets.map((dataset: any) => ({
+          label: dataset.label || 'Unnamed Dataset',
+          data: dataset.data || [],
+          dataLength: dataset.data?.length || 0,
+          backgroundColor: dataset.backgroundColor,
+          borderColor: dataset.borderColor
+        })),
+        totalDataPoints: datasets.reduce((sum: number, ds: any) => sum + (ds.data?.length || 0), 0),
+        tableName: chartConfig.tableName || chart.tableName || chart.sourceTable || 'unknown',
+        tableDescription: chartConfig.tableDescription || chart.tableDescription || chart.description || 'no description',
+        analysis: chart.analysis || 'no analysis available',
+        insights: chart.insights || 'no insights available',
+        hasAnalysis: !!chart.analysis,
+        hasInsights: !!chart.insights,
+        // Additional chart properties
+        dateRange: chart.dateRange || chartConfig.dateRange || 'no date range',
+        filters: chart.filters || chartConfig.filters || 'no filters',
+        slicers: chart.slicers || chartConfig.slicers || 'no slicers',
+        rawChartObject: JSON.stringify(chart, null, 2)
       };
     });
-
-    // Calculate key statistics
-    const totalCharts = charts.length;
-    const totalDataPoints = chartSummaries.reduce((sum, chart) => sum + chart.dataPoints, 0);
-    const chartTypes = [...new Set(chartSummaries.map(chart => chart.type))];
 
     // Get project metadata
     const projectName = projectData?.name || config.reportTitle || 'Data Analysis Report';
     const reportDate = config.reportDate || new Date().toISOString().split('T')[0];
 
-    const prompt = `
-Generate an executive summary for a data analysis report. Do NOT include title, date, or headers - just the content.
+    // Calculate aggregate statistics
+    const totalCharts = charts.length;
+    const totalDataPoints = detailedChartData.reduce((sum, chart) => sum + chart.totalDataPoints, 0);
+    const chartTypes = [...new Set(detailedChartData.map(chart => chart.type))];
+    const uniqueTableNames = [...new Set(detailedChartData.map(chart => chart.tableName))];
+    const chartsWithAnalysis = detailedChartData.filter(chart => chart.hasAnalysis).length;
+    const chartsWithInsights = detailedChartData.filter(chart => chart.hasInsights).length;
 
-DATA CONTEXT:
+    const prompt = `
+LOGGING MODE: Please expose and list ALL data you received for verification purposes.
+
+PROJECT METADATA:
+- Project Name: ${projectName}
+- Report Date: ${reportDate}
+- Report Title: ${config.reportTitle || 'N/A'}
+- Report Description: ${config.description || 'N/A'}
+
+AGGREGATE STATISTICS:
 - Total Charts: ${totalCharts}
 - Total Data Points: ${totalDataPoints}
-- Chart Types: ${chartTypes.join(', ')}
-- Charts: ${chartSummaries.map(chart => `${chart.title} (${chart.type})`).join(', ')}
+- Unique Chart Types: ${chartTypes.join(', ')}
+- Unique Table Names: ${uniqueTableNames.join(', ')}
+- Charts with Analysis: ${chartsWithAnalysis}
+- Charts with Insights: ${chartsWithInsights}
 
-STRUCTURE (no section headers, just content):
-1. Overview (30-50 words): Report scope and purpose
-2. Key Findings (50-70 words): Main insights and patterns
-3. Data Summary (25-40 words): Dataset statistics and coverage
-4. Recommendations (40-60 words): Strategic next steps
+DETAILED CHART DATA:
+${detailedChartData.map(chart => `
+CHART ${chart.chartIndex}:
+- ID: ${chart.id}
+- Title: ${chart.title}
+- Type: ${chart.type}
+- X-Axis Field: ${chart.xAxisField}
+- Y-Axis Field: ${chart.yAxisField}
+- Aggregation: ${chart.aggregation}
+- Color Scheme: ${chart.colorScheme}
+- Show Legend: ${chart.showLegend}
+- Show Grid: ${chart.showGrid}
+- Animation: ${chart.animation}
+- Table Name: ${chart.tableName}
+- Table Description: ${chart.tableDescription}
+- Date Range: ${chart.dateRange}
+- Filters: ${JSON.stringify(chart.filters)}
+- Slicers: ${JSON.stringify(chart.slicers)}
+- Data Labels: [${chart.dataLabels.slice(0, 15).join(', ')}${chart.dataLabels.length > 15 ? '...' : ''}] (${chart.dataLabels.length} total)
+- Datasets: ${chart.datasets.map(ds => `"${ds.label}" (${ds.dataLength} points)`).join(', ')}
+- Total Data Points: ${chart.totalDataPoints}
+- Has Analysis: ${chart.hasAnalysis}
+- Analysis Content: ${chart.analysis}
+- Has Insights: ${chart.hasInsights}
+- Insights Content: ${chart.insights}
+- Full Raw Chart Object:
+${chart.rawChartObject}
+`).join('\n')}
 
-CRITICAL REQUIREMENTS:
-- MAXIMUM 1500 characters total
-- NO titles, headers, or "Executive Summary:" text
-- Professional, executive-appropriate language
-- Focus on business impact and actionable insights
-- Use markdown formatting (**bold**, bullet points)
-- Present tense, active voice
-- Target 145-220 words (1200-1500 characters)
+CONFIG OBJECT:
+${JSON.stringify(config, null, 2)}
 
-Generate ONLY the executive summary content:
+PROJECT DATA OBJECT:
+${JSON.stringify(projectData, null, 2)}
+
+TASK: Please list and expose ALL the data you received above in a structured format for verification. Do NOT generate an executive summary yet - just show me what data is available.
 `;
+
+    // Console log the input data for debugging
+    console.log('=== EXECUTIVE SUMMARY INPUT DATA ===');
+    console.log('Charts array:', charts);
+    console.log('Charts length:', charts.length);
+    console.log('Project data:', projectData);
+    console.log('Config object:', config);
+    console.log('Detailed chart data:', detailedChartData);
+    console.log('Prompt length:', prompt.length);
+    console.log('Full prompt:', prompt);
+    console.log('=== END INPUT DATA ===');
 
     return await this.generateContent(prompt, modelName);
   }

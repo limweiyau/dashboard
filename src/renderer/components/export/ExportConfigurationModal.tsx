@@ -190,72 +190,12 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
     // Get text content including newlines and spaces
     const textContent = editor.innerText || '';
 
-    // Enforce strict character limit (including newlines, spaces, everything)
-    if (textContent.length <= MAX_EXECUTIVE_SUMMARY_CHARS) {
-      onConfigChange({ executiveSummaryContent: textContent });
-    } else {
-      // Truncate content if it exceeds limit
-      const truncatedContent = textContent.substring(0, MAX_EXECUTIVE_SUMMARY_CHARS);
-      onConfigChange({ executiveSummaryContent: truncatedContent });
-
-      // Prevent updating editor content to avoid cursor jumping
-      e.preventDefault();
-
-      // Update editor content manually
-      editor.innerText = truncatedContent;
-
-      // Restore cursor position (or set to end if position was beyond truncation)
-      const newCursorPosition = Math.min(cursorPosition, truncatedContent.length);
-
-      setTimeout(() => {
-        const range = document.createRange();
-        const selection = window.getSelection();
-
-        try {
-          if (editor.firstChild) {
-            range.setStart(editor.firstChild, Math.min(newCursorPosition, editor.firstChild.textContent?.length || 0));
-            range.setEnd(editor.firstChild, Math.min(newCursorPosition, editor.firstChild.textContent?.length || 0));
-          } else {
-            range.setStart(editor, 0);
-            range.setEnd(editor, 0);
-          }
-
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        } catch (error) {
-          // Fallback: set cursor to end
-          range.selectNodeContents(editor);
-          range.collapse(false);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        }
-      }, 0);
-    }
+    // Temporarily disable character limit for logging mode
+    onConfigChange({ executiveSummaryContent: textContent });
   };
 
   const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const editor = e.currentTarget;
-    const currentLength = (editor.innerText || '').length;
-
-    // Allow navigation keys, deletion keys, and shortcuts even at limit
-    const allowedKeys = [
-      'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-      'Home', 'End', 'PageUp', 'PageDown', 'Tab', 'Escape'
-    ];
-
-    // Prevent typing new characters if at limit (except if text is selected for replacement)
-    if (currentLength >= MAX_EXECUTIVE_SUMMARY_CHARS && !allowedKeys.includes(e.key)) {
-      const selection = window.getSelection();
-      const hasSelection = selection && selection.toString().length > 0;
-
-      // Allow if user has selected text (they're replacing it) or using shortcuts
-      if (!hasSelection && !(e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        return;
-      }
-    }
-
-    // Handle keyboard shortcuts
+    // Temporarily disable all limits for logging mode - only handle shortcuts
     if (e.ctrlKey || e.metaKey) {
       switch (e.key.toLowerCase()) {
         case 'b':
@@ -1240,9 +1180,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 <div style={{
                   display: 'flex',
                   borderBottom: '1px solid #e2e8f0',
-                  marginBottom: '16px',
-                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                  borderRadius: '8px 8px 0 0'
+                  marginBottom: '8px',
+                  marginTop: '-8px'
                 }}>
                   {[
                     { key: 'settings', label: 'Settings' },
@@ -1476,9 +1415,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                 <div style={{
                   display: 'flex',
                   borderBottom: '1px solid #e2e8f0',
-                  marginBottom: '16px',
-                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                  borderRadius: '8px 8px 0 0'
+                  marginBottom: '8px',
+                  marginTop: '-8px'
                 }}>
                   {[
                     { key: 'summary', label: 'Executive Summary' },
@@ -1569,11 +1507,8 @@ const ExportConfigurationModal: React.FC<ExportConfigurationModalProps> = ({
                                     { name: config.reportTitle },
                                     config
                                   );
-                                  // Enforce character limit on AI-generated content
-                                  const truncatedSummary = summary.length > MAX_EXECUTIVE_SUMMARY_CHARS
-                                    ? summary.substring(0, MAX_EXECUTIVE_SUMMARY_CHARS)
-                                    : summary;
-                                  onConfigChange({ executiveSummaryContent: truncatedSummary });
+                                  // Don't enforce character limit for logging mode - let full data through
+                                  onConfigChange({ executiveSummaryContent: summary });
                                 } catch (error) {
                                   console.error('Failed to generate executive summary:', error);
                                   alert('Failed to generate executive summary. Please check your API key and try again.');
