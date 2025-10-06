@@ -1904,7 +1904,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         const selectedModel = settings?.selectedModels?.gemini || 'gemini-2.5-flash';
         const rowCount = Array.isArray(table.data) ? table.data.length : 0;
         const columnInfo = table.columns.map((c: any) => `${c.name} (${c.type})`).join(', ');
-        const prompt = `Write a professional, business-focused description of this data table in one sentence. Table: "${table.name}" with ${rowCount} records. Fields: ${columnInfo}. Focus on what this data tracks or measures. Keep it under 200 characters. No quotes. Be concise and clear.`;
+        const prompt = `Write a professional, business-focused description of this data table in one sentence. Table: "${table.name}" with ${rowCount} records. Fields: ${columnInfo}. Focus on what this data tracks or measures. Keep it under 150 characters. No quotes. Be concise and clear.`;
 
         const result = await geminiClient.generateContent(prompt, selectedModel);
         const generatedDesc = result.trim();
@@ -1913,7 +1913,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           return;
         }
 
-        const newDescription = generatedDesc.slice(0, 200);
+        const newDescription = generatedDesc.slice(0, 150);
         setDescription(newDescription);
         setOriginalDescription(newDescription);
         setIsAIGenerated(true);
@@ -2047,7 +2047,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
               <input
                 type="text"
                 value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 200))}
+                onChange={(e) => setDescription(e.target.value.slice(0, 150))}
                 onBlur={handleDescriptionSave}
                 onKeyPress={(e) => e.key === 'Enter' && handleDescriptionSave()}
                 placeholder="Add a description..."
@@ -2056,9 +2056,10 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                   fontSize: '14px',
                   border: '2px solid #3b82f6',
                   borderRadius: '8px',
-                  padding: '10px 12px',
+                  padding: '12px 12px',
                   outline: 'none',
-                  width: '100%',
+                  width: '500px',
+                  minWidth: '500px',
                   color: '#1e293b',
                   background: 'white',
                   fontWeight: '500'
