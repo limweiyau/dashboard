@@ -264,7 +264,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
       <div style={{
         display: 'grid',
         gap: '20px',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))'
+        gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))'
       }}>
         {projects.map((project, index) => (
           <div
@@ -523,12 +523,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
                     background: '#fef3c7',
                     fontSize: '10px',
                     fontWeight: '500',
-                    color: '#92400e'
+                    color: '#92400e',
+                    marginTop: '6px'
                   }}>
                     <div style={{
                       width: '4px',

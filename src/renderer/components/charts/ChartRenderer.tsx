@@ -22,19 +22,19 @@ function formatNumberValue(value: number, format: ChartConfiguration['numberForm
     switch (format.displayUnit) {
       case 'hundreds':
         formattedValue = value / 100;
-        unitSuffix = format.displayUnitLabel ? ' H' : '';
+        unitSuffix = format.displayUnitLabel ? 'H' : '';
         break;
       case 'thousands':
         formattedValue = value / 1000;
-        unitSuffix = format.displayUnitLabel ? ' K' : '';
+        unitSuffix = format.displayUnitLabel ? 'K' : '';
         break;
       case 'millions':
         formattedValue = value / 1000000;
-        unitSuffix = format.displayUnitLabel ? ' M' : '';
+        unitSuffix = format.displayUnitLabel ? 'M' : '';
         break;
       case 'billions':
         formattedValue = value / 1000000000;
-        unitSuffix = format.displayUnitLabel ? ' B' : '';
+        unitSuffix = format.displayUnitLabel ? 'B' : '';
         break;
     }
   }
@@ -42,20 +42,9 @@ function formatNumberValue(value: number, format: ChartConfiguration['numberForm
   // Handle decimals and thousands separators together
   let result: string;
 
-  // Auto-adjust decimal places for display units if needed, max 3 decimals
+  // Use the configured decimal places, max 3 decimals
   let effectiveDecimals = format.decimals !== undefined ? Math.min(format.decimals, 3) : 2;
   const decimalsConfigured = format.decimals !== undefined;
-
-  // If display unit is applied and decimals is 0, but result has meaningful decimals, auto-adjust
-  if (format.displayUnit && format.displayUnit !== 'none' && format.decimals === 0) {
-    const decimalPart = formattedValue - Math.floor(formattedValue);
-    if (decimalPart > 0.001) { // If there are meaningful decimals
-      // Count significant decimal places (up to 3)
-      const decimalStr = decimalPart.toFixed(6);
-      const significantDecimals = Math.min(3, decimalStr.replace('0.', '').replace(/0+$/, '').length);
-      effectiveDecimals = Math.max(1, significantDecimals);
-    }
-  }
 
   const roundedDisplayValue = roundToMaxDecimals(formattedValue);
 

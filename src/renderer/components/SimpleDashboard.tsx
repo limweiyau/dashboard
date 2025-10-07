@@ -17,6 +17,7 @@ import ChartSlicerControls from './ChartSlicerControls';
 import DateRangeManager from './DateRangeManager';
 import DateRangeFilter from './DateRangeFilter';
 import { GeminiClient } from '../utils/geminiClient';
+import TableSetupModal from './TableSetupModal';
 
 type ChartAnalysisEntry = {
   content: string;
@@ -138,6 +139,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   const [showDataImport, setShowDataImport] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
+  const [pendingTableData, setPendingTableData] = useState<{
+    data: any[];
+    columns: any[];
+    fileName: string;
+  } | null>(null);
   const analysisStorageKey = useMemo(() => `chart-analyses-${project?.id ?? 'default'}`, [project?.id]);
   const brandingStorageKey = useMemo(
     () => (project?.id ? `export-branding-${project.id}` : 'export-branding-default'),
@@ -1077,20 +1083,38 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
   };
 
   const handleDataImport = (data: any[], columns: any[], fileName?: string) => {
+    // Show table setup modal for configuration
+    setPendingTableData({
+      data,
+      columns,
+      fileName: fileName || ''
+    });
+    setShowDataImport(false);
+  };
+
+  const handleTableSetupSave = (title: string, description: string, isAIGenerated: boolean = false) => {
+    if (!pendingTableData) return;
+
+    const { data, columns } = pendingTableData;
+
     // Check if we have main data - if not, this becomes main data
     if (!projectData.data || projectData.data.length === 0) {
       const updatedData = {
         ...projectData,
         data,
         columns,
-        name: fileName ? fileName.replace(/\.[^/.]+$/, '') : projectData.name || 'Dataset'
+        name: title || projectData.name || 'Dataset',
+        description: description ? description : undefined,
+        descriptionIsAI: description ? isAIGenerated : false
       };
       onProjectUpdate(updatedData);
     } else {
       // Add as additional table
       const newTable = {
         id: `table-${Date.now()}`,
-        name: fileName ? fileName.replace(/\.[^/.]+$/, '') : `Table ${(projectData.tables?.length || 0) + 1}`,
+        name: title,
+        description: description ? description : undefined,
+        descriptionIsAI: description ? isAIGenerated : false,
         data,
         columns,
         createdAt: new Date().toISOString(),
@@ -1103,8 +1127,13 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
       };
       onProjectUpdate(updatedData);
     }
-    setShowDataImport(false);
+
+    setPendingTableData(null);
     setImportError('');
+  };
+
+  const handleTableSetupCancel = () => {
+    setPendingTableData(null);
   };
 
   const handleDirectFileSelect = async () => {
@@ -1849,19 +1878,27 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
 
       if (affectedCharts.length > 0 || affectedSlicers.length > 0) {
         const chartNames = affectedCharts.map(c => `"${c.config.title || c.name}"`).join(', ');
-        const message = `Deleting "${table.name}" will affect:\n\n` +
+        const message = `Deleting "${table.name}" will also delete:\n\n` +
           `• ${affectedCharts.length} chart(s): ${chartNames}\n` +
           `• ${affectedSlicers.length} filter(s)\n\n` +
-          `These will stop working until reconfigured.\n\n` +
-          `Delete anyway?`;
+          `This cannot be undone.\n\n` +
+          `Delete table and all dependent items?`;
 
         if (!confirm(message)) return;
       }
 
       // Proceed with deletion
+      // Remove affected charts (they rely on this table's data)
+      const updatedCharts = projectData.charts.filter(chart => chart.config.tableId !== tableId);
+
+      // Remove affected slicers
+      const updatedSlicers = projectData.slicers.filter(s => s.tableId !== tableId);
+
       const updatedData = {
         ...projectData,
-        tables: projectData.tables.filter(t => t.id !== tableId)
+        tables: projectData.tables.filter(t => t.id !== tableId),
+        charts: updatedCharts,
+        slicers: updatedSlicers
       };
       onProjectUpdate(updatedData);
     };
@@ -2031,6 +2068,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
     const [isEditingDescription, setIsEditingDescription] = useState(false);
     const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
     const [isAIGenerated, setIsAIGenerated] = useState(table.descriptionIsAI || false);
+    const [isHoveringDescription, setIsHoveringDescription] = useState(false);
 
     useEffect(() => {
       setDescription(table.description || '');
@@ -2071,7 +2109,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         const selectedModel = settings?.selectedModels?.gemini || 'gemini-2.5-flash';
         const rowCount = Array.isArray(table.data) ? table.data.length : 0;
         const columnInfo = table.columns.map((c: any) => `${c.name} (${c.type})`).join(', ');
-        const prompt = `Write a professional, business-focused description of this data table in one sentence. Table: "${table.name}" with ${rowCount} records. Fields: ${columnInfo}. Focus on what this data tracks or measures. Keep it under 150 characters. No quotes. Be concise and clear.`;
+        const prompt = `Write a professional, business-focused description of this data table in one sentence. Table: "${table.name}" with ${rowCount} records. Fields: ${columnInfo}. Focus on what this data tracks or measures. Keep it under 175 characters. No quotes. Be concise and clear.`;
 
         const result = await geminiClient.generateContent(prompt, selectedModel);
         const generatedDesc = result.trim();
@@ -2080,7 +2118,7 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
           return;
         }
 
-        const newDescription = generatedDesc.slice(0, 150);
+        const newDescription = generatedDesc.slice(0, 175);
         setDescription(newDescription);
         setOriginalDescription(newDescription);
         setIsAIGenerated(true);
@@ -2145,24 +2183,34 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         {/* HEADER + ROWS X COLUMNS */}
         <div style={{ minWidth: '220px' }}>
           {isEditing ? (
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onBlur={handleSave}
-              onKeyPress={(e) => e.key === 'Enter' && handleSave()}
-              style={{
-                fontSize: '16px',
-                fontWeight: '600',
-                border: '2px solid #3b82f6',
-                borderRadius: '8px',
-                padding: '10px 12px',
-                outline: 'none',
-                width: '100%',
-                color: '#0f172a'
-              }}
-              autoFocus
-            />
+            <div>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value.slice(0, 25))}
+                onBlur={handleSave}
+                onKeyPress={(e) => e.key === 'Enter' && handleSave()}
+                style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  border: '2px solid #3b82f6',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  outline: 'none',
+                  width: '100%',
+                  color: '#0f172a',
+                  height: '32px'
+                }}
+                autoFocus
+              />
+              <div style={{
+                fontSize: '11px',
+                color: editName.length > 20 ? '#dc2626' : '#94a3b8',
+                marginTop: '4px'
+              }}>
+                {editName.length}/25
+              </div>
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div
@@ -2180,7 +2228,11 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                   fontWeight: '600',
                   color: '#0f172a',
                   letterSpacing: '-0.01em',
-                  lineHeight: '1.4'
+                  lineHeight: '1.4',
+                  maxWidth: '200px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
                 }}>
                   {table.name}
                 </h4>
@@ -2204,42 +2256,42 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
         <div style={{
           paddingLeft: '24px',
           borderLeft: '2px solid #e2e8f0',
-          minWidth: '200px',
+          minWidth: '400px',
+          flex: 1,
           alignSelf: 'stretch',
           display: 'flex',
           alignItems: 'center'
         }}>
           {isEditingDescription ? (
-            <div onClick={(e) => e.stopPropagation()}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%' }}>
               <input
                 type="text"
                 value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 150))}
+                onChange={(e) => setDescription(e.target.value.slice(0, 175))}
                 onBlur={handleDescriptionSave}
                 onKeyPress={(e) => e.key === 'Enter' && handleDescriptionSave()}
                 placeholder="Add a description..."
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                  fontSize: '14px',
-                  border: '2px solid #3b82f6',
-                  borderRadius: '8px',
-                  padding: '12px 12px',
+                  fontSize: '13px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '8px 10px',
                   outline: 'none',
-                  width: '500px',
-                  minWidth: '500px',
-                  color: '#1e293b',
+                  width: '100%',
+                  color: '#64748b',
                   background: 'white',
-                  fontWeight: '500'
+                  fontWeight: '400'
                 }}
                 autoFocus
               />
               <div style={{
-                fontSize: '12px',
-                color: description.length > 180 ? '#dc2626' : '#94a3b8',
+                fontSize: '11px',
+                color: description.length > 160 ? '#dc2626' : '#94a3b8',
                 marginTop: '4px',
                 fontWeight: '500'
               }}>
-                {description.length}/200 characters
+                {description.length}/175
               </div>
             </div>
           ) : (
@@ -2248,19 +2300,27 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                 e.stopPropagation();
                 setIsEditingDescription(true);
               }}
+              onMouseEnter={() => setIsHoveringDescription(true)}
+              onMouseLeave={() => setIsHoveringDescription(false)}
               style={{
-                fontSize: '14px',
+                width: '100%',
+                fontSize: '13px',
                 color: description ? '#64748b' : '#94a3b8',
                 fontStyle: description ? 'normal' : 'italic',
-                cursor: 'pointer',
+                cursor: 'text',
                 lineHeight: '1.6',
-                fontWeight: '500',
+                fontWeight: '400',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
-                wordBreak: 'break-word'
+                wordBreak: 'break-word',
+                padding: '8px 10px',
+                borderRadius: '6px',
+                border: `1px solid ${isHoveringDescription ? '#cbd5e1' : 'transparent'}`,
+                background: isHoveringDescription ? '#f8fafc' : 'transparent',
+                transition: 'all 0.15s ease'
               }}
             >
               {description || 'Click to add a description...'}
@@ -3381,6 +3441,18 @@ const SimpleDashboard: React.FC<SimpleDashboardProps> = ({
                 selectedValues: slicer.selectedValues
               }));
           })()}
+        />
+      )}
+
+      {/* Table Setup Modal */}
+      {pendingTableData && (
+        <TableSetupModal
+          fileName={pendingTableData.fileName}
+          data={pendingTableData.data}
+          columns={pendingTableData.columns}
+          onSave={handleTableSetupSave}
+          onCancel={handleTableSetupCancel}
+          settings={settings}
         />
       )}
     </div>

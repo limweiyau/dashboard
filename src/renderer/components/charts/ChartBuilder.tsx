@@ -260,9 +260,15 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
         const template = CHART_TEMPLATES.find(t => t.id === config.templateId);
         if (template) {
           setSelectedTemplate(template);
-          // Load table selection if available
+          // Load table selection if available and table still exists
           if (config.tableId) {
-            setSelectedTableId(config.tableId);
+            // Check if table exists before setting it
+            if (config.tableId === 'main' || projectData.tables?.some(t => t.id === config.tableId)) {
+              setSelectedTableId(config.tableId);
+            } else {
+              // Table was deleted, reset to main
+              setSelectedTableId('main');
+            }
           }
           setChartConfig({
             // Basic configuration
@@ -397,6 +403,21 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
       }
     }
   }, [chart]);
+
+  // Reset to main table if selected table is deleted
+  useEffect(() => {
+    if (selectedTableId !== 'main') {
+      const tableExists = projectData.tables?.some(t => t.id === selectedTableId);
+      if (!tableExists) {
+        setSelectedTableId('main');
+        // Also update the chart config's tableId
+        setChartConfig(prev => ({
+          ...prev,
+          tableId: 'main'
+        }));
+      }
+    }
+  }, [selectedTableId, projectData.tables]);
 
   useEffect(() => {
     if (selectedTemplate) {
@@ -1163,7 +1184,7 @@ const ChartBuilder: React.FC<ChartBuilderProps> = ({
                             </option>
                           ))}
                         </select>
-                        {selectedTableId !== 'main' && (
+                        {selectedTableId !== 'main' && projectData.tables?.find(t => t.id === selectedTableId) && (
                           <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
                             ✓ Using table: {projectData.tables?.find(t => t.id === selectedTableId)?.name}
                           </div>
